@@ -2,6 +2,13 @@ from dataclasses import dataclass
 from typing import Dict, List, Any
 from datetime import datetime
 
+
+@dataclass
+class Team:
+    name: str
+    escalation_policy: str
+
+
 @dataclass
 class Incident:
     raw: Dict[str, Any]

@@ -42,3 +42,4 @@ htmlcov/
 
 # Configuration
 src/health/config/pagerduty.py 
+src/health/config/team.yaml
