@@ -1,39 +1,10 @@
-#!/usr/bin/env python3
-
 import click
 import json
-from datetime import datetime, timedelta, time, timezone
-from .clients.pagerduty import PagerDutyClient
-from .team_manager import TeamManager
-from .dataclass import Incident
-
-def get_default_time_range() -> tuple[datetime, datetime]:
-    """
-    Get the default time range for reports: Monday 00:00 to Sunday 23:59 UTC of the most recent complete week.
-    
-    Returns:
-        tuple[datetime, datetime]: A tuple of (start_time, end_time) where:
-            - end_time is 23:59:59 UTC of the most recent Sunday
-            - start_time is 00:00:00 UTC of the Monday before that
-    """
-    # Get current time in UTC
-    now = datetime.now(timezone.utc)
-    
-    # Find the most recent Sunday
-    days_since_sunday = now.weekday() + 1  # +1 because weekday() has Monday=0, Sunday=6
-    last_sunday = now - timedelta(days=days_since_sunday)
-    
-    # Set time to 23:59:59 UTC for end time
-    end_time = datetime.combine(last_sunday.date(), time(23, 59, 59), tzinfo=timezone.utc)
-    
-    # Get Monday of that week (6 days before Sunday)
-    start_time = datetime.combine(
-        (last_sunday - timedelta(days=6)).date(), 
-        time.min, 
-        tzinfo=timezone.utc
-    )
-    
-    return start_time, end_time
+from datetime import datetime, timezone
+from ..clients.pagerduty import PagerDutyClient
+from ..team_manager import TeamManager
+from ..dataclass import Incident
+from .base import cli, get_default_time_range
 
 def print_incident(incident: Incident, raw: bool = False) -> None:
     """
@@ -67,16 +38,6 @@ def print_incident(incident: Incident, raw: bool = False) -> None:
             click.echo("Resolved: Not resolved yet")
         
         click.echo(f"Timed Out: {'Yes' if incident.timed_out else 'No'}")
-
-@click.group()
-def cli():
-    """Team Health Reporter - A CLI tool for reporting team health metrics."""
-    pass
-
-@cli.command()
-def report():
-    """Generate a team health report."""
-    click.echo("Generating team health report...")
 
 @cli.command()
 @click.argument('team_key')
@@ -136,9 +97,10 @@ def list_incidents_for_team(team_key: str, start: datetime, end: datetime, confi
 @click.option('--raw', is_flag=True, help='Show raw incident data and logs')
 def describe_incident(incident_id, raw):
     """Describe a specific incident."""
-    client = PagerDutyClient()
-    incident = client.get_incident(incident_id)
-    print_incident(incident, raw)
-
-if __name__ == "__main__":
-    cli() 
+    try:
+        client = PagerDutyClient()
+        incident = client.get_incident(incident_id)
+        print_incident(incident, raw)
+    except Exception as e:
+        click.echo(f"Error: {str(e)}", err=True)
+        return 
