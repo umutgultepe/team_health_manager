@@ -2,13 +2,14 @@ import os
 from datetime import datetime
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from ..config.credentials import SLACK_BOT_TOKEN
 
 class SlackClient:
     def __init__(self):
         """Initialize Slack client with API token from environment."""
-        token = os.getenv('SLACK_BOT_TOKEN')
+        token = os.getenv('SLACK_BOT_TOKEN') or SLACK_BOT_TOKEN
         if not token:
-            raise ValueError("SLACK_BOT_TOKEN environment variable is not set")
+            raise ValueError("SLACK_BOT_TOKEN not found in environment or config")
         self.client = WebClient(token=token)
 
     def get_channel_id(self, channel_name: str) -> str:

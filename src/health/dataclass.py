@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 
@@ -7,6 +7,12 @@ from datetime import datetime
 class Team:
     name: str
     escalation_policy: str
+
+
+@dataclass
+class Person:
+    name: str
+    email: str
 
 
 @dataclass
@@ -59,3 +65,16 @@ class Incident:
                     log.get('channel', {}).get('type') == 'timeout'):
                     self.timed_out = True
                     break 
+
+
+@dataclass
+class JIRAIssue:
+    """Base class for JIRA issues."""
+    project_key: str
+    key: str
+    summary: str
+    description: Optional[str]
+    status: str
+    assignee: Optional[Person]
+    components: List[str]
+

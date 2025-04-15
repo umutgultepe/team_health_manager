@@ -1,3 +1,0 @@
-# PagerDuty API Configuration
-PAGERDUTY_API_KEY = "your-api-key-here"
-PAGERDUTY_EMAIL = "your-email@example.com" 

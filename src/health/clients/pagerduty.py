@@ -1,5 +1,5 @@
 from ..dataclass import Incident
-from ..config.pagerduty import PAGERDUTY_API_KEY, PAGERDUTY_EMAIL
+from ..config.credentials import PAGERDUTY_API_KEY, PAGERDUTY_EMAIL
 import requests
 import json
 from typing import Optional, Dict, Any, List

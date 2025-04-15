@@ -41,6 +41,8 @@ htmlcov/
 *.log
 
 # Configuration
-src/health/config/pagerduty.py 
-src/health/config/slack.py
+src/health/config/credentials.py
 src/health/config/team.yaml
+
+# Keep templates
+!src/health/config/*.template
