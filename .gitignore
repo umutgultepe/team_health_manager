@@ -38,4 +38,7 @@ htmlcov/
 .tox/
 
 # Logs
-*.log 
+*.log
+
+# Configuration
+src/health/config/pagerduty.py 
