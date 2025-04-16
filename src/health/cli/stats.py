@@ -20,4 +20,22 @@ def write_headers(team_key: str, team_config: str, stats_config: str):
         click.echo(f"Successfully wrote headers for team {team_key}")
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)
-        return 
+        return
+
+@cli.command()
+@click.argument('team_key')
+@click.option('--section', help='Section to write statistics for (e.g., PagerDuty)')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+@click.option('--stats-config', default='src/health/config/stats.yaml', help='Path to stats configuration file')
+def write_stats(team_key: str, section: str, team_config: str, stats_config: str):
+    """Write statistics for a team to the Google Sheet.
+    
+    Args:
+        team_key: Key of the team to write statistics for
+        section: Optional section name to limit writing to
+        team_config: Path to team configuration file
+        stats_config: Path to stats configuration file
+    """
+    manager = StatsManager(team_config, stats_config)
+    manager.write_stats_for_team(team_key, section)
+    click.echo(f"Successfully wrote statistics for team {team_key}")
