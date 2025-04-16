@@ -52,15 +52,62 @@ pip install -r requirements.txt
 
 ## Usage
 
-After installation and configuration, you can use the `health` command:
+After installation and configuration, you can use the following commands:
+
+### Slack Commands
 
 ```bash
-# Generate a health report
-health report
+# Get messages from a Slack channel
+health get-slack-messages <channel> [--start START] [--end END] [--raw]
 
-# View help
-health --help
+Options:
+  --start    Start time in UTC (YYYY-MM-DD HH:MM:SS)
+  --end      End time in UTC (YYYY-MM-DD HH:MM:SS)
+  --raw      Show raw message data
 ```
+
+### PagerDuty Commands
+
+```bash
+# List incidents for a team
+health list-incidents-for-team <team_key> [--start START] [--end END] [--config CONFIG] [--raw]
+
+# Get pager statistics for a team
+health pager-stats <team_key> [--start START] [--end END] [--config CONFIG]
+
+# Get details of a specific incident
+health describe-incident <incident_id> [--raw]
+
+Options:
+  --start    Start time in UTC (YYYY-MM-DD HH:MM:SS)
+  --end      End time in UTC (YYYY-MM-DD HH:MM:SS)
+  --config   Path to team configuration file (default: src/health/config/team.yaml)
+  --raw      Show raw incident data and logs
+```
+
+### JIRA Commands
+
+```bash
+# List ARN project issues for a component
+health list-arns <component> [--start START] [--end END]
+
+# List ARN project issues for a team
+health team-arns <team_key> [--start START] [--end END] [--config CONFIG]
+
+# Get ARN counts across teams
+health arn-counts [--start START] [--end END] [--config CONFIG]
+
+Options:
+  --start    Start time in UTC (YYYY-MM-DD HH:MM:SS)
+  --end      End time in UTC (YYYY-MM-DD HH:MM:SS)
+  --config   Path to team configuration file (default: src/health/config/team.yaml)
+```
+
+### General Options
+
+- All time-based commands use UTC timezone
+- If `--start` and `--end` are not specified, the default time range is used (Monday 00:00 to Sunday 23:59 UTC of the most recent complete week)
+- Use `--help` with any command to see its specific options and usage
 
 ## Development
 
