@@ -89,4 +89,38 @@ def team_arns(team_key: str, start: datetime, end: datetime, config: str):
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)
         return
+
+@cli.command()
+@click.option('--start', type=click.DateTime(), help='Start time in UTC (YYYY-MM-DD HH:MM:SS)')
+@click.option('--end', type=click.DateTime(), help='End time in UTC (YYYY-MM-DD HH:MM:SS)')
+@click.option('--config', default='src/health/config/team.yaml', help='Path to team configuration file')
+def arn_counts(start: datetime, end: datetime, config: str):
+    """Show ARN issue counts for all teams."""
+    try:
+        # Load team configuration
+        team_manager = TeamManager(config)
+        
+        # Get time range
+        start, end = get_time_range(start, end)
+        
+        # Get JIRA client
+        client = JIRAClient()
+        
+        # Get counts for each team
+        click.echo("\nARN Issue Counts by Team:")
+        click.echo("=" * 40)
+        
+        for team_key, team in team_manager.teams.items():
+            try:
+                issues = client.list_arns(team.components, start, end)
+                click.echo(f"{team.name}: {len(issues)}")
+            except Exception as e:
+                click.echo(f"{team.name}: Error - {str(e)}", err=True)
+                continue
+        
+        click.echo("=" * 40)
+            
+    except Exception as e:
+        click.echo(f"Error: {str(e)}", err=True)
+        return
         
