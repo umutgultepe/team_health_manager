@@ -56,3 +56,37 @@ def fill_dates(team_key: Optional[str] = None) -> None:
     except Exception as e:
         click.echo(f"Error filling dates: {e}", err=True)
         raise click.Abort()
+
+@cli.command()
+@click.option('--skip-date-fill', is_flag=True, help='Skip filling dates before writing statistics')
+def refresh_all(skip_date_fill: bool) -> None:
+    """Refresh statistics for all teams.
+    
+    Args:
+        skip_date_fill: If True, skip filling dates before writing statistics
+    """
+    try:
+        stats_manager = StatsManager()
+        
+        # Get all teams
+        teams = stats_manager.team_manager.teams
+        
+        for team_key, team in teams.items():
+            if not team:
+                continue
+                
+            click.echo(f"Processing team: {team.name}")
+            
+            # Fill dates unless skipped
+            if not skip_date_fill:
+                click.echo("  Filling dates...")
+                stats_manager.fill_dates(team_key)
+                
+            # Write statistics for all sections
+            click.echo("  Writing statistics...")
+            stats_manager.write_stats_for_team(team_key)
+                
+        click.echo("Successfully refreshed all teams")
+    except Exception as e:
+        click.echo(f"Error refreshing teams: {e}", err=True)
+        raise click.Abort()

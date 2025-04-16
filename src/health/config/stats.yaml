@@ -1,5 +1,6 @@
 PagerDuty:
   total_incidents: Incident Count
+  high_urgency_incidents: Incident Count (High Urgency)
   auto_resolved: Auto Resolved 
   timed_out: Missed Response (Escalated)
   mtta_str: Mean Time to Acknowledgment (Minutes)

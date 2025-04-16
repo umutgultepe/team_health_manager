@@ -51,16 +51,20 @@ class PagerDutyClient:
             # Get incidents for all services
             incidents = []
             incidents_url = f"{self.base_url}/incidents"
-            params = {
-                'service_ids[]': service_ids,
-                'since': start_time.isoformat(),
-                'until': end_time.isoformat(),
-                'include[]': ['assignees', 'users'],
-                'sort_by': 'created_at:asc'
-            }
+            offset = 0
+            limit = 100
             
-            # Handle pagination
-            while incidents_url:
+            while True:
+                params = {
+                    'service_ids[]': service_ids,
+                    'since': start_time.isoformat(),
+                    'until': end_time.isoformat(),
+                    'include[]': ['assignees', 'users'],
+                    'sort_by': 'created_at:asc',
+                    'offset': offset,
+                    'limit': limit
+                }
+                
                 incidents_response = requests.get(incidents_url, headers=self.headers, params=params)
                 incidents_response.raise_for_status()
                 incidents_data = incidents_response.json()
@@ -69,11 +73,12 @@ class PagerDutyClient:
                 for incident_data in incidents_data.get('incidents', []):
                     incidents.append(self._get_incident_with_logs(incident_data))
                 
-                # Check for more pages
-                incidents_url = incidents_data.get('next')
-                if incidents_url:
-                    # Remove params as they're included in the next URL
-                    params = None
+                # Check if there are more pages
+                if not incidents_data.get('more', False):
+                    break
+                
+                # Update offset for next page
+                offset += limit
             
             return incidents
             
@@ -179,7 +184,7 @@ class PagerDutyClient:
         total_incidents = len(incidents)
         auto_resolved = sum(1 for i in incidents if i.resolution_type == "AUTO")
         timed_out = sum(1 for i in incidents if i.timed_out)
-        
+        high_urgency_incidents = sum(1 for i in incidents if i.high_urgency)
         # Calculate mean time to acknowledgment
         acknowledgment_times = [i.time_to_acknowledgement for i in incidents if i.time_to_acknowledgement is not None]
         mean_time_to_ack = sum(acknowledgment_times, timedelta()) / len(acknowledgment_times) if acknowledgment_times else None
@@ -209,6 +214,7 @@ class PagerDutyClient:
             total_incidents=total_incidents,
             auto_resolved=auto_resolved,
             timed_out=timed_out,
+            high_urgency_incidents=high_urgency_incidents,
             mean_time_to_acknowledgement=mean_time_to_ack,
             total_response_time=total_response_time
         )

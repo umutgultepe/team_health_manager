@@ -162,11 +162,12 @@ class StatsManager:
         
         while True:
             # Check if column has start and end dates
-            start_date_str = self.sheets_client.read_cell(team.name, f"{current_col}1")
-            end_date_str = self.sheets_client.read_cell(team.name, f"{current_col}2")
-            
-            if not start_date_str or not end_date_str:
+            start_end_dates = self.sheets_client.read_vertical_range(f"{team.name}!{current_col}1:{current_col}2")
+            if not start_end_dates or not start_end_dates[0] or not start_end_dates[1]:
                 break
+
+            start_date_str = start_end_dates[0]
+            end_date_str = start_end_dates[1]
                 
             # Parse dates
             start_date = datetime.strptime(start_date_str, '%m/%d/%Y').replace(
@@ -188,6 +189,8 @@ class StatsManager:
                 self._write_stats(team, section, getter, current_col)
             elif section == 'JIRA':
                 # Get JIRA statistics
+                if not team.components:
+                    continue
                 def getter():
                     return self.jira_client.jira_statistics(
                         team.components,

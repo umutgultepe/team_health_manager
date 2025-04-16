@@ -30,6 +30,7 @@ class Incident:
     resolved_time: datetime = None
     resolution_type: str = None
     timed_out: bool = False
+    high_urgency: bool = False
     
     @property
     def time_to_acknowledgement(self) -> Optional[timedelta]:
@@ -58,6 +59,7 @@ class Incident:
         incident_data = self.raw.get('incident', {})
         self.title = incident_data.get('title')
         created_at = incident_data.get('created_at')
+        self.high_urgency = incident_data.get('urgency', {}) == "high"
         if created_at:
             self.created = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
 
@@ -112,6 +114,7 @@ class PagerDutyStats:
     total_incidents: int
     auto_resolved: int
     timed_out: int
+    high_urgency_incidents: int
     mean_time_to_acknowledgement: Optional[timedelta]
     total_response_time: timedelta
     

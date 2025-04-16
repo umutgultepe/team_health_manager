@@ -46,13 +46,13 @@ class TeamManager:
                 raise ValueError(f"Team configuration for {key} must be a dictionary")
                 
             # Validate required fields
-            required_fields = ['name', 'help_channel', 'oncall_handle', 'escalation_policy', 'components']
+            required_fields = ['name', 'help_channel', 'oncall_handle', 'escalation_policy']
             missing_fields = [field for field in required_fields if field not in team_config]
             if missing_fields:
                 raise ValueError(f"Missing required fields for team {key}: {', '.join(missing_fields)}")
             
             # Validate components is a list
-            if not isinstance(team_config['components'], list):
+            if team_config.get('components', None) and not isinstance(team_config['components'], list):
                 raise ValueError(f"Components for team {key} must be a list")
             
             self.teams[key] = Team(
@@ -60,7 +60,7 @@ class TeamManager:
                 help_channel=team_config['help_channel'],
                 oncall_handle=team_config['oncall_handle'],
                 escalation_policy=team_config['escalation_policy'],
-                components=team_config['components']
+                components=team_config.get("components", [])
             )
     
     def by_key(self, key: str) -> Optional[Team]:
