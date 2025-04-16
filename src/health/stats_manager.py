@@ -1,7 +1,7 @@
 import yaml
 import os
 from typing import Dict, Any, Optional, Callable
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from .clients.sheets import SheetsClient
 from .clients.pagerduty import PagerDutyClient
 from .clients.jira import JIRAClient
@@ -198,3 +198,64 @@ class StatsManager:
             
             # Move to next column
             current_col = chr(ord(current_col) + 1) 
+
+    def fill_dates(self, team_key: Optional[str] = None) -> None:
+        """Fill date ranges in the Google Sheet for a team.
+        
+        Args:
+            team_key: Optional team key. If not provided, fills dates for all teams.
+        """
+        # Get teams to process
+        teams = [self.team_manager.by_key(team_key)] if team_key else self.team_manager.teams
+        
+        for team in teams:
+            if not team:
+                continue
+                
+            # Start from column B
+            current_col = 'B'
+            last_start_date = None
+            
+            # Find the last filled column
+            while True:
+                start_date_str = self.sheets_client.read_cell(team.name, f"{current_col}1")
+                if not start_date_str:
+                    break
+                    
+                # Parse the date
+                last_start_date = datetime.strptime(start_date_str, '%m/%d/%Y')
+                current_col = chr(ord(current_col) + 1)
+                
+            # If we found a last date, check if we need to fill more dates
+            if last_start_date:
+                # Get the Monday before last
+                last_monday = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                while last_monday.weekday() != 0:  # 0 is Monday
+                    last_monday -= timedelta(days=1)
+                last_monday -= timedelta(weeks=1)  # Go back one more week
+                
+                # If the last date is before the Monday before last, fill more dates
+                if last_start_date < last_monday:
+                    # Calculate how many weeks we need to add
+                    weeks_to_add = (last_monday - last_start_date).days // 7
+                    
+                    # Fill dates for each week
+                    for i in range(weeks_to_add):
+                        # Calculate new dates
+                        new_start = last_start_date + timedelta(weeks=i+1)
+                        new_end = new_start + timedelta(days=6)
+                        
+                        # Write the dates
+                        self.sheets_client.write_to_cell(
+                            team.name,
+                            f"{current_col}1",
+                            new_start.strftime('%m/%d/%Y')
+                        )
+                        self.sheets_client.write_to_cell(
+                            team.name,
+                            f"{current_col}2",
+                            new_end.strftime('%m/%d/%Y')
+                        )
+                        
+                        # Move to next column
+                        current_col = chr(ord(current_col) + 1) 

@@ -25,11 +25,23 @@ class SheetsClient:
             HttpError: If there's an error writing to the sheet
         """
         try:
+            # Try to parse as float first
+            try:
+                num_value = float(text)
+                # If it's an integer, write as integer
+                if num_value.is_integer():
+                    value = int(num_value)
+                else:
+                    value = num_value
+            except (ValueError, TypeError):
+                # If not a number, keep as string
+                value = text
+                
             # Convert coordinate to A1 notation with sheet name
             range_name = f"{tab_name}!{coordinate}"
             
             # Prepare the value range
-            values = [[text]]
+            values = [[value]]
             body = {
                 'values': values
             }
