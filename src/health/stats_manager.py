@@ -1,11 +1,11 @@
 import yaml
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 from datetime import datetime, timezone
 from .clients.sheets import SheetsClient
 from .clients.pagerduty import PagerDutyClient
 from .team_manager import TeamManager
-
+from .dataclass import PagerDutyStats, JIRAIssueStats, Team
 class StatsManager:
     """Manager for handling statistics and writing them to Google Sheets."""
     
@@ -95,46 +95,34 @@ class StatsManager:
                 
         return header_map
         
-    def _write_pagerduty_stats(self, team_key: str, start_date: datetime, end_date: datetime, 
-                             current_col: str) -> None:
-        """Write PagerDuty statistics for a team to the Google Sheet.
+    def _write_stats(self, team: Team, section: str, getter: Callable[[], Any], current_col: str) -> None:
+        """Write statistics for a team to the Google Sheet.
         
         Args:
-            team_key: Key of the team to write statistics for
-            start_date: Start date for statistics
-            end_date: End date for statistics
+            team: Team to write statistics for
+            section: Section to write statistics for
+            stats: Statistics to write
             current_col: Current column to write to
-            header_map: Map of header names to row numbers
         """
-        # Get team information
-        team = self.team_manager.by_key(team_key)
-        if not team:
-            raise ValueError(f"Team '{team_key}' not found in configuration")
-        
         # Build header map
-        header_map = self._build_header_map(team.name, "PagerDuty")
+        header_map = self._build_header_map(team.name, section)
             
-        # Get PagerDuty section headers from config
-        pagerduty_headers = self.stats_config.get('PagerDuty', {})
-        if not pagerduty_headers:
+        # Get section headers from config
+        section_headers = self.stats_config.get(section, {})
+        if not section_headers:
             return
 
         # Check if first header is already filled
-        first_header = list(pagerduty_headers.values())[0]
+        first_header = list(section_headers.values())[0]
         if first_header in header_map:
             existing_value = self.sheets_client.read_cell(team.name, f"{current_col}{header_map[first_header]}")
             if existing_value and existing_value.strip():
                 return
-                
-        # Get PagerDuty statistics
-        stats = self.pagerduty_client.policy_statistics(
-            team.escalation_policy,
-            start_date,
-            end_date
-        )
+
+        stats = getter()        
         
         # Write statistics based on config headers
-        for stat_key, header in pagerduty_headers.items():
+        for stat_key, header in section_headers.items():
             if header not in header_map:
                 continue
                 
@@ -182,7 +170,14 @@ class StatsManager:
             
             # Write statistics based on section
             if section == 'PagerDuty':
-                self._write_pagerduty_stats(team_key, start_date, end_date, current_col)
+                # Get PagerDuty statistics
+                def getter():
+                    return self.pagerduty_client.policy_statistics(
+                        team.escalation_policy,
+                        start_date,
+                        end_date
+                    )
+                self._write_stats(team, section, getter, current_col)
             
             # Move to next column
             current_col = chr(ord(current_col) + 1) 

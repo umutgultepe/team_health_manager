@@ -156,3 +156,9 @@ class PagerDutyStats:
         if not self.total_response_time_hours:
             return "N/A"
         return f"{self.total_response_time_hours:.2f}"
+
+
+@dataclass
+class JIRAIssueStats:
+    """Statistics for JIRA issues."""
+    total_issues: int
