@@ -42,6 +42,17 @@ class Incident:
             return None
         return self.first_acknowledge_time - self.created
 
+    @property
+    def time_to_acknowledgement_minutes(self) -> Optional[float]:
+        """Calculate time between incident creation and first acknowledgment in minutes.
+        
+        Returns:
+            Optional[float]: Time to acknowledgment in minutes if acknowledged, None otherwise
+        """
+        if not self.time_to_acknowledgement:
+            return None
+        return self.time_to_acknowledgement.total_seconds() / 60
+
     def __post_init__(self):
         # Parse fields from raw response
         incident_data = self.raw.get('incident', {})
@@ -105,15 +116,15 @@ class PagerDutyStats:
     total_response_time: timedelta
     
     @property
-    def mean_time_to_acknowledgement_hours(self) -> Optional[float]:
-        """Get mean time to acknowledgment in hours.
+    def mean_time_to_acknowledgement_minutes(self) -> Optional[float]:
+        """Get mean time to acknowledgment in minutes.
         
         Returns:
-            Mean time in hours if available, None otherwise
+            Mean time in minutes if available, None otherwise
         """
         if not self.mean_time_to_acknowledgement:
             return None
-        return self.mean_time_to_acknowledgement.total_seconds() / 3600
+        return self.mean_time_to_acknowledgement.total_seconds() / 60
         
     @property
     def total_response_time_hours(self) -> float:
@@ -123,3 +134,25 @@ class PagerDutyStats:
             Total response time in hours
         """
         return self.total_response_time.total_seconds() / 3600
+
+    @property
+    def mtta_str(self) -> str:
+        """Get mean time to acknowledgment as a formatted string in minutes.
+        
+        Returns:
+            Formatted string with 2 decimal places, or "N/A" if not available
+        """
+        if not self.mean_time_to_acknowledgement_minutes:
+            return "N/A"
+        return f"{self.mean_time_to_acknowledgement_minutes:.2f}"
+
+    @property
+    def total_response_time_str(self) -> str:
+        """Get total response time as a formatted string in hours.
+        
+        Returns:
+            Formatted string with 2 decimal places, or "N/A" if not available
+        """
+        if not self.total_response_time_hours:
+            return "N/A"
+        return f"{self.total_response_time_hours:.2f}"

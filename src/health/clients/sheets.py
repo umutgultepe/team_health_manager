@@ -2,7 +2,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from ..config.credentials import get_google_credentials, get_google_sheet_id
-from typing import Optional
+from typing import Optional, List
 
 class SheetsClient:
     """Client for interacting with Google Sheets."""
@@ -77,3 +77,27 @@ class SheetsClient:
         except Exception as e:
             print(f"Error reading cell {cell_reference} from sheet {sheet_name}: {e}")
             return None 
+
+    def read_vertical_range(self, range_name: str) -> List[str]:
+        """Read a vertical range of cells from the specified sheet.
+        
+        Args:
+            range_name: Range in A1 notation (e.g., 'Sheet1!A3:A102')
+            
+        Returns:
+            List of cell values from the range
+        """
+        try:
+            # Read the values
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.sheet_id,
+                range=range_name
+            ).execute()
+            
+            # Extract values and flatten the list
+            values = result.get('values', [])
+            return [row[0] if row else None for row in values]
+            
+        except Exception as e:
+            print(f"Error reading range {range_name}: {e}")
+            return [] 

@@ -73,28 +73,82 @@ class StatsManager:
             Dictionary mapping header text to row number
         """
         header_map = {}
-        current_row = 3  # Start at row 3
         max_rows = 100  # Maximum number of rows to check
         
         # Get the headers we need to find for this section
         section_headers = set(self.stats_config.get(section, {}).values())
         
-        # Read headers until we find all required headers or reach max rows
-        while current_row <= max_rows:
-            header = self.sheets_client.read_cell(team_name, f"A{current_row}")
+        # Read all rows at once
+        range_name = f"{team_name}!A3:A{3 + max_rows - 1}"
+        headers = self.sheets_client.read_vertical_range(range_name)
+        
+        # Build the header map
+        for i, header in enumerate(headers, start=3):
             if not header:
                 break
                 
-            header_map[header] = current_row
+            header_map[header] = i
             
             # Check if we've found all required headers for this section
             if all(header in header_map for header in section_headers):
                 break
                 
-            current_row += 1
-            
         return header_map
         
+    def _write_pagerduty_stats(self, team_key: str, start_date: datetime, end_date: datetime, 
+                             current_col: str) -> None:
+        """Write PagerDuty statistics for a team to the Google Sheet.
+        
+        Args:
+            team_key: Key of the team to write statistics for
+            start_date: Start date for statistics
+            end_date: End date for statistics
+            current_col: Current column to write to
+            header_map: Map of header names to row numbers
+        """
+        # Get team information
+        team = self.team_manager.by_key(team_key)
+        if not team:
+            raise ValueError(f"Team '{team_key}' not found in configuration")
+        
+        # Build header map
+        header_map = self._build_header_map(team.name, "PagerDuty")
+            
+        # Get PagerDuty section headers from config
+        pagerduty_headers = self.stats_config.get('PagerDuty', {})
+        if not pagerduty_headers:
+            return
+
+        # Check if first header is already filled
+        first_header = list(pagerduty_headers.values())[0]
+        if first_header in header_map:
+            existing_value = self.sheets_client.read_cell(team.name, f"{current_col}{header_map[first_header]}")
+            if existing_value and existing_value.strip():
+                return
+                
+        # Get PagerDuty statistics
+        stats = self.pagerduty_client.policy_statistics(
+            team.escalation_policy,
+            start_date,
+            end_date
+        )
+        
+        # Write statistics based on config headers
+        for stat_key, header in pagerduty_headers.items():
+            if header not in header_map:
+                continue
+                
+            # Get the value from the stats object using the stat_key
+            value = getattr(stats, stat_key, None)
+            if value is None:
+                continue
+                
+            self.sheets_client.write_to_cell(
+                team.name,
+                f"{current_col}{header_map[header]}",
+                value
+            )
+
     def write_stats_for_team(self, team_key: str, section: str) -> None:
         """Write statistics for a team to the Google Sheet.
         
@@ -107,9 +161,6 @@ class StatsManager:
         if not team:
             raise ValueError(f"Team '{team_key}' not found in configuration")
             
-        # Build header map
-        header_map = self._build_header_map(team.name, section)
-        
         # Start from column B
         current_col = 'B'
         
@@ -129,55 +180,9 @@ class StatsManager:
                 hour=23, minute=59, second=59, tzinfo=timezone.utc
             )
             
-            # Get PagerDuty statistics
-            stats = self.pagerduty_client.policy_statistics(
-                team.escalation_policy,
-                start_date,
-                end_date
-            )
-            
-            # Write statistics
-            if section is None or section == 'PagerDuty':
-                # Write total incidents
-                if 'Incident Count' in header_map:
-                    self.sheets_client.write_to_cell(
-                        team.name,
-                        f"{current_col}{header_map['Incident Count']}",
-                        str(stats.total_incidents)
-                    )
-                    
-                # Write auto resolved
-                if 'Auto Resolved' in header_map:
-                    self.sheets_client.write_to_cell(
-                        team.name,
-                        f"{current_col}{header_map['Auto Resolved']}",
-                        str(stats.auto_resolved)
-                    )
-                    
-                # Write timed out
-                if 'Missed Response (Escalated)' in header_map:
-                    self.sheets_client.write_to_cell(
-                        team.name,
-                        f"{current_col}{header_map['Missed Response (Escalated)']}",
-                        str(stats.timed_out)
-                    )
-                    
-                # Write mean time to acknowledgment
-                if 'Mean Time to Acknowledgment' in header_map:
-                    value = f"{stats.mean_time_to_acknowledgement_minutes:.2f}" if stats.mean_time_to_acknowledgement_minutes else "N/A"
-                    self.sheets_client.write_to_cell(
-                        team.name,
-                        f"{current_col}{header_map['Mean Time to Acknowledgment']}",
-                        value
-                    )
-                    
-                # Write total response time
-                if 'Total Incident Window' in header_map:
-                    self.sheets_client.write_to_cell(
-                        team.name,
-                        f"{current_col}{header_map['Total Incident Window']}",
-                        f"{stats.total_response_time_hours:.2f}"
-                    )
+            # Write statistics based on section
+            if section == 'PagerDuty':
+                self._write_pagerduty_stats(team_key, start_date, end_date, current_col)
             
             # Move to next column
             current_col = chr(ord(current_col) + 1) 
