@@ -1,7 +1,7 @@
 import requests
 from datetime import datetime
 from typing import List
-from ..dataclass import JIRAIssue
+from ..dataclass import JIRAIssue, JIRAIssueStats
 from ..config.credentials import JIRA_API_TOKEN, JIRA_EMAIL, JIRA_DOMAIN
 
 class JIRAClient:
@@ -139,4 +139,25 @@ class JIRAClient:
                 error_detail = e.response.text
             else:
                 error_detail = str(e)
-            raise Exception(f"Error fetching JIRA issues: {str(e)}") 
+            raise Exception(f"Error fetching JIRA issues: {str(e)}")
+
+    def jira_statistics(self, components: List[str], start_time: datetime, end_time: datetime) -> JIRAIssueStats:
+        """Calculate statistics for JIRA issues.
+        
+        Args:
+            components: List of components to filter issues by
+            start_time: Start time for the statistics
+            end_time: End time for the statistics
+            
+        Returns:
+            JIRAIssueStats object containing the statistics
+        """
+        # Get all ARN issues for the components and time range
+        arns = self.list_arns(components, start_time, end_time)
+        
+        # Calculate statistics
+        total_arns = len(arns)
+        
+        return JIRAIssueStats(
+            total_arns=total_arns
+        ) 

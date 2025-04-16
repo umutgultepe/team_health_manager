@@ -6,4 +6,4 @@ PagerDuty:
   total_response_time_str: Total Incident Window (Hours)
 
 JIRA:
-  total_issues: Issue Count
+  total_arns: ARN Count

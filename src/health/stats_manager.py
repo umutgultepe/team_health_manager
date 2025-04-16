@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, Callable
 from datetime import datetime, timezone
 from .clients.sheets import SheetsClient
 from .clients.pagerduty import PagerDutyClient
+from .clients.jira import JIRAClient
 from .team_manager import TeamManager
 from .dataclass import PagerDutyStats, JIRAIssueStats, Team
 class StatsManager:
@@ -20,6 +21,7 @@ class StatsManager:
         self.team_manager = TeamManager(team_config_path)
         self.sheets_client = SheetsClient()
         self.pagerduty_client = PagerDutyClient()
+        self.jira_client = JIRAClient()
         self.stats_config = self._load_stats_config(stats_config_path)
         
     def _load_stats_config(self, config_path: str) -> Dict[str, Dict[str, str]]:
@@ -77,7 +79,6 @@ class StatsManager:
         
         # Get the headers we need to find for this section
         section_headers = set(self.stats_config.get(section, {}).values())
-        
         # Read all rows at once
         range_name = f"{team_name}!A3:A{3 + max_rows - 1}"
         headers = self.sheets_client.read_vertical_range(range_name)
@@ -85,7 +86,7 @@ class StatsManager:
         # Build the header map
         for i, header in enumerate(headers, start=3):
             if not header:
-                break
+                continue
                 
             header_map[header] = i
             
@@ -174,6 +175,15 @@ class StatsManager:
                 def getter():
                     return self.pagerduty_client.policy_statistics(
                         team.escalation_policy,
+                        start_date,
+                        end_date
+                    )
+                self._write_stats(team, section, getter, current_col)
+            elif section == 'JIRA':
+                # Get JIRA statistics
+                def getter():
+                    return self.jira_client.jira_statistics(
+                        team.components,
                         start_date,
                         end_date
                     )

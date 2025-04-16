@@ -161,4 +161,4 @@ class PagerDutyStats:
 @dataclass
 class JIRAIssueStats:
     """Statistics for JIRA issues."""
-    total_issues: int
+    total_arns: int
