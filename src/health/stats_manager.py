@@ -138,7 +138,7 @@ class StatsManager:
                 value
             )
 
-    def write_stats_for_team(self, team_key: str, section: str) -> None:
+    def write_stats_for_team(self, team_key: str, section: Optional[str] = None) -> None:
         """Write statistics for a team to the Google Sheet.
         
         Args:
@@ -149,7 +149,14 @@ class StatsManager:
         team = self.team_manager.by_key(team_key)
         if not team:
             raise ValueError(f"Team '{team_key}' not found in configuration")
+
+        if section:
+            self._write_stats_for_section(team, section)
+        else:
+            for section in self.stats_config.keys():
+                self._write_stats_for_section(team, section)
             
+    def _write_stats_for_section(self, team: Team, section: str) -> None:
         # Start from column B
         current_col = 'B'
         

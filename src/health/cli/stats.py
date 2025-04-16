@@ -24,7 +24,7 @@ def write_headers(team_key: str, team_config: str, stats_config: str):
 
 @cli.command()
 @click.argument('team_key')
-@click.option('--section', help='Section to write statistics for (e.g., PagerDuty)')
+@click.option('--section', default=None, help='Section to write statistics for (e.g., PagerDuty)')
 @click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
 @click.option('--stats-config', default='src/health/config/stats.yaml', help='Path to stats configuration file')
 def write_stats(team_key: str, section: str, team_config: str, stats_config: str):
