@@ -1,9 +1,9 @@
-from ..dataclass import Incident
+from ..dataclass import Incident, PagerDutyStats
 from ..config.credentials import PAGERDUTY_API_KEY, PAGERDUTY_EMAIL
 import requests
 import json
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class PagerDutyClient:
     def __init__(self):
@@ -145,4 +145,70 @@ class PagerDutyClient:
         return Incident(
             raw={'incident': incident_data},
             raw_logs=sorted_logs
+        )
+
+    def policy_statistics(
+        self,
+        escalation_policy_id: str,
+        start: datetime,
+        end: datetime
+    ) -> PagerDutyStats:
+        """Calculate statistics for incidents in an escalation policy.
+        
+        Args:
+            escalation_policy_id: ID of the escalation policy
+            start: Start time in UTC
+            end: End time in UTC
+            
+        Returns:
+            PagerDutyStats object containing the statistics
+        """
+        # Get all incidents
+        incidents = self.get_incidents_for_policy(escalation_policy_id, start, end)
+        
+        if not incidents:
+            return PagerDutyStats(
+                total_incidents=0,
+                auto_resolved=0,
+                timed_out=0,
+                mean_time_to_acknowledgement=None,
+                total_response_time=timedelta()
+            )
+        
+        # Calculate statistics
+        total_incidents = len(incidents)
+        auto_resolved = sum(1 for i in incidents if i.resolution_type == "AUTO")
+        timed_out = sum(1 for i in incidents if i.timed_out)
+        
+        # Calculate mean time to acknowledgment
+        acknowledgment_times = [i.time_to_acknowledgement for i in incidents if i.time_to_acknowledgement is not None]
+        mean_time_to_ack = sum(acknowledgment_times, timedelta()) / len(acknowledgment_times) if acknowledgment_times else None
+        
+        # Calculate total response time
+        # Sort incidents by creation time
+        sorted_incidents = sorted(incidents, key=lambda x: x.created)
+        total_response_time = timedelta()
+        current_end = start
+        
+        for incident in sorted_incidents:
+            # If incident started after current_end, add gap to total
+            if incident.created > current_end:
+                total_response_time += incident.created - current_end
+            
+            # Update current_end to the later of:
+            # - current_end
+            # - incident's resolved time (or end if not resolved)
+            resolved_time = incident.resolved_time if incident.resolved_time else end
+            current_end = max(current_end, resolved_time)
+        
+        # Add any remaining time after the last incident
+        if current_end < end:
+            total_response_time += end - current_end
+        
+        return PagerDutyStats(
+            total_incidents=total_incidents,
+            auto_resolved=auto_resolved,
+            timed_out=timed_out,
+            mean_time_to_acknowledgement=mean_time_to_ack,
+            total_response_time=total_response_time
         )

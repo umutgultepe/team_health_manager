@@ -129,38 +129,21 @@ def pager_stats(team_key: str, start: datetime, end: datetime, config: str):
         # Get time range
         start, end = get_time_range(start, end)
         
-        # Get incidents
+        # Get statistics
         client = PagerDutyClient()
-        incidents = client.get_incidents_for_policy(
-            team.escalation_policy,
-            start,
-            end
-        )
-        
-        if not incidents:
-            click.echo(f"No incidents found for team {team.name} in the specified time range.")
-            return
-        
-        # Calculate statistics
-        total_incidents = len(incidents)
-        auto_resolved = sum(1 for i in incidents if i.resolution_type == "AUTO")
-        timed_out = sum(1 for i in incidents if i.timed_out)
-        
-        # Calculate mean time to acknowledgment
-        acknowledgment_times = [i.time_to_acknowledgement for i in incidents if i.time_to_acknowledgement is not None]
-        mean_time_to_ack = sum(acknowledgment_times, timedelta()) / len(acknowledgment_times) if acknowledgment_times else None
+        stats = client.policy_statistics(team.escalation_policy, start, end)
         
         # Print statistics
         click.echo(f"\nIncident Statistics for {team.name}:")
         click.echo("=" * 40)
-        click.echo(f"Total Incidents: {total_incidents}")
-        click.echo(f"Auto Resolved: {auto_resolved}")
-        click.echo(f"Missed Response: {timed_out}")
-        if mean_time_to_ack:
-            hours = mean_time_to_ack.total_seconds() / 3600
-            click.echo(f"Mean Time to Acknowledgment: {hours:.2f} hours")
+        click.echo(f"Total Incidents: {stats.total_incidents}")
+        click.echo(f"Auto Resolved: {stats.auto_resolved}")
+        click.echo(f"Timed Out: {stats.timed_out}")
+        if stats.mean_time_to_acknowledgement_hours is not None:
+            click.echo(f"Mean Time to Acknowledgment: {stats.mean_time_to_acknowledgement_hours:.2f} hours")
         else:
             click.echo("Mean Time to Acknowledgment: No acknowledged incidents")
+        click.echo(f"Total Response Time: {stats.total_response_time_hours:.2f} hours")
         click.echo("=" * 40)
             
     except Exception as e:

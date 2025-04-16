@@ -5,12 +5,12 @@ from datetime import datetime, timedelta
 
 @dataclass
 class Team:
-    """Represents a team configuration."""
+    """Team configuration."""
     name: str
     help_channel: str
     oncall_handle: str
-    escalation_policy: str
     components: List[str]
+    escalation_policy: str
 
 
 @dataclass
@@ -30,7 +30,7 @@ class Incident:
     resolved_time: datetime = None
     resolution_type: str = None
     timed_out: bool = False
-
+    
     @property
     def time_to_acknowledgement(self) -> Optional[timedelta]:
         """Calculate time between incident creation and first acknowledgment.
@@ -94,3 +94,32 @@ class JIRAIssue:
     assignee: str
     reporter: str
 
+
+@dataclass
+class PagerDutyStats:
+    """Statistics for PagerDuty incidents."""
+    total_incidents: int
+    auto_resolved: int
+    timed_out: int
+    mean_time_to_acknowledgement: Optional[timedelta]
+    total_response_time: timedelta
+    
+    @property
+    def mean_time_to_acknowledgement_hours(self) -> Optional[float]:
+        """Get mean time to acknowledgment in hours.
+        
+        Returns:
+            Mean time in hours if available, None otherwise
+        """
+        if not self.mean_time_to_acknowledgement:
+            return None
+        return self.mean_time_to_acknowledgement.total_seconds() / 3600
+        
+    @property
+    def total_response_time_hours(self) -> float:
+        """Get total response time in hours.
+        
+        Returns:
+            Total response time in hours
+        """
+        return self.total_response_time.total_seconds() / 3600

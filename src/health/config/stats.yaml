@@ -1,0 +1,9 @@
+PagerDuty:
+  total_incidents: Incident Count
+  auto_resolved: Auto Resolved 
+  timed_out: Missed Response (Escalated)
+  mean_time_to_acknowledgement: Mean Time to Acknowledgment
+  total_response_time: Total Incident Window
+
+JIRA:
+  total_issues: Issue Count
