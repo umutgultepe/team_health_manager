@@ -47,4 +47,5 @@ def report():
 
 # Import all subcommands
 from . import slack  # noqa
-from . import pagerduty  # noqa 
+from . import pagerduty  # noqa
+from . import jira  # noqa 

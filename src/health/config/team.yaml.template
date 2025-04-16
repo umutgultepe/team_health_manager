@@ -1,4 +1,7 @@
-app_foundations:
-  escalation_policy: "PDXRY35"
-  name: "App Foundations"
-
+team_key:
+  name: "Team Name"
+  help_channel: "#slack-channel"
+  oncall_handle: "@slack-user-group"
+  escalation_policy: escalation_policy_id
+  components:
+    - JIRA Component Name
