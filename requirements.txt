@@ -5,4 +5,5 @@ PyYAML==6.0.1
 google-auth-oauthlib==1.2.0
 google-auth-httplib2==0.2.0
 google-api-python-client==2.118.0
-slack-sdk>=3.27.0  # Required for Slack API interactions 
+slack-sdk>=3.27.0  # Required for Slack API interactions
+tenacity>=8.0.0  # Required for retry functionality in API calls 

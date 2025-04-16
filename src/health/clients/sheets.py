@@ -3,6 +3,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from ..config.credentials import get_google_credentials, get_google_sheet_id
 from typing import Optional, List
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class SheetsClient:
     """Client for interacting with Google Sheets."""
@@ -59,6 +60,30 @@ class SheetsClient:
         except HttpError as error:
             raise Exception(f"An error occurred while writing to Google Sheets: {error}")
 
+    @retry(
+        stop=stop_after_attempt(8),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        retry=retry_if_exception_type(HttpError)
+    )
+    def _make_sheets_request(self, request_func):
+        """Make a request to Google Sheets API with retry logic.
+        
+        Args:
+            request_func: Function that makes the API request
+            
+        Returns:
+            The API response
+            
+        Raises:
+            HttpError: If the request fails after all retry attempts
+        """
+        try:
+            return request_func().execute()
+        except HttpError as error:
+            if error.resp.status == 429:
+                raise  # Retry on 429 errors
+            raise Exception(f"An error occurred while accessing Google Sheets: {error}")
+
     def read_cell(self, sheet_name: str, cell_reference: str) -> Optional[str]:
         """Read a single cell's value from the specified sheet.
         
@@ -69,26 +94,23 @@ class SheetsClient:
         Returns:
             The cell's value as a string, or None if the cell is empty
         """
-        try:
-            # Convert coordinate to A1 notation with sheet name
-            range_name = f"{sheet_name}!{cell_reference}"
-            
-            # Read the cell value
-            result = self.service.spreadsheets().values().get(
+        # Convert coordinate to A1 notation with sheet name
+        range_name = f"{sheet_name}!{cell_reference}"
+        
+        # Read the cell value with retry logic
+        result = self._make_sheets_request(
+            lambda: self.service.spreadsheets().values().get(
                 spreadsheetId=self.sheet_id,
                 range=range_name
-            ).execute()
+            )
+        )
+        
+        # Extract the value from the response
+        values = result.get('values', [])
+        if not values or not values[0]:
+            return None
             
-            # Extract the value from the response
-            values = result.get('values', [])
-            if not values or not values[0]:
-                return None
-                
-            return values[0][0]
-            
-        except Exception as e:
-            print(f"Error reading cell {cell_reference} from sheet {sheet_name}: {e}")
-            return None 
+        return values[0][0]
 
     def read_vertical_range(self, range_name: str) -> List[str]:
         """Read a vertical range of cells from the specified sheet.
@@ -99,17 +121,24 @@ class SheetsClient:
         Returns:
             List of cell values from the range
         """
-        try:
-            # Read the values
-            result = self.service.spreadsheets().values().get(
+        # Read the range with retry logic
+        result = self._make_sheets_request(
+            lambda: self.service.spreadsheets().values().get(
                 spreadsheetId=self.sheet_id,
                 range=range_name
-            ).execute()
+            )
+        )
+        
+        # Extract values from the response
+        values = result.get('values', [])
+        if not values:
+            return []
             
-            # Extract values and flatten the list
-            values = result.get('values', [])
-            return [row[0] if row else None for row in values]
-            
-        except Exception as e:
-            print(f"Error reading range {range_name}: {e}")
-            return [] 
+        # Flatten the list since we're reading a vertical range
+        column = []
+        for value in values:
+            if value:
+                column.append(str(value[0]))
+            else:
+                column.append("")
+        return column

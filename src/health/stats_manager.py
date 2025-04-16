@@ -187,10 +187,8 @@ class StatsManager:
                         end_date
                     )
                 self._write_stats(team, section, getter, current_col)
-            elif section == 'JIRA':
+            elif section == 'JIRA' and team.components:
                 # Get JIRA statistics
-                if not team.components:
-                    continue
                 def getter():
                     return self.jira_client.jira_statistics(
                         team.components,

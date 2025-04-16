@@ -174,6 +174,7 @@ class PagerDutyClient:
         if not incidents:
             return PagerDutyStats(
                 total_incidents=0,
+                high_urgency_incidents=0,
                 auto_resolved=0,
                 timed_out=0,
                 mean_time_to_acknowledgement=None,
