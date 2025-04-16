@@ -5,8 +5,12 @@ from datetime import datetime
 
 @dataclass
 class Team:
+    """Represents a team configuration."""
     name: str
+    help_channel: str
+    oncall_handle: str
     escalation_policy: str
+    components: List[str]
 
 
 @dataclass

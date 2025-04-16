@@ -72,13 +72,20 @@ class JIRAClient:
             requests.exceptions.RequestException: If the API request fails
         """
         try:
-            # Convert components list to JQL format
-            components_jql = " OR ".join([f'component = "{c}"' for c in components])
+            # Ensure components is a list and not empty
+            if not isinstance(components, list):
+                raise ValueError("Components must be a list")
+            if not components:
+                raise ValueError("Components list cannot be empty")
+            
+            # Convert components list to JQL format using IN statement
+            components_list = ", ".join([f'"{c}"' for c in components])
+            components_jql = f'component IN ({components_list})'
             
             # Build JQL query
             jql = (
                 f'project = ARN AND '
-                f'({components_jql}) AND '
+                f'{components_jql} AND '
                 f'created >= "{start_time.strftime("%Y-%m-%d %H:%M")}" AND '
                 f'created <= "{end_time.strftime("%Y-%m-%d %H:%M")}"'
             )
