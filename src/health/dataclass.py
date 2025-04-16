@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 @dataclass
@@ -30,6 +30,17 @@ class Incident:
     resolved_time: datetime = None
     resolution_type: str = None
     timed_out: bool = False
+
+    @property
+    def time_to_acknowledgement(self) -> Optional[timedelta]:
+        """Calculate time between incident creation and first acknowledgment.
+        
+        Returns:
+            Optional[timedelta]: Time to acknowledgment if acknowledged, None otherwise
+        """
+        if not self.first_acknowledge_time or not self.created:
+            return None
+        return self.first_acknowledge_time - self.created
 
     def __post_init__(self):
         # Parse fields from raw response
