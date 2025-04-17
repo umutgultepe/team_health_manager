@@ -62,7 +62,7 @@ class SheetsClient:
 
     @retry(
         stop=stop_after_attempt(8),
-        wait=wait_exponential(multiplier=1, min=4, max=60),
+        wait=wait_exponential(multiplier=5, min=4, max=60),
         retry=retry_if_exception_type(HttpError)
     )
     def _make_sheets_request(self, request_func):
