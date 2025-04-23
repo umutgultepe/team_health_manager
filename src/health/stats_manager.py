@@ -96,7 +96,7 @@ class StatsManager:
                 
         return header_map
         
-    def _write_stats(self, team: Team, section: str, getter: Callable[[], Any], current_col: str) -> None:
+    def _write_stats(self, team: Team, section: str, getter: Callable[[], Any], current_col: str, overwrite_header: Optional[str] = None) -> None:
         """Write statistics for a team to the Google Sheet.
         
         Args:
@@ -114,17 +114,21 @@ class StatsManager:
             return
 
         # Check if first header is already filled
-        first_header = list(section_headers.values())[0]
-        if first_header in header_map:
-            existing_value = self.sheets_client.read_cell(team.name, f"{current_col}{header_map[first_header]}")
-            if existing_value and existing_value.strip():
-                return
+        if overwrite_header is None:
+            first_header = list(section_headers.values())[0]
+            if first_header in header_map:
+                existing_value = self.sheets_client.read_cell(team.name, f"{current_col}{header_map[first_header]}")
+                if existing_value and existing_value.strip():
+                    return
 
         stats = getter()        
         
         # Write statistics based on config headers
         for stat_key, header in section_headers.items():
             if header not in header_map:
+                continue
+
+            if overwrite_header is not None and overwrite_header != stat_key:
                 continue
                 
             # Get the value from the stats object using the stat_key
@@ -138,7 +142,7 @@ class StatsManager:
                 value
             )
 
-    def write_stats_for_team(self, team_key: str, section: Optional[str] = None) -> None:
+    def write_stats_for_team(self, team_key: str, section: Optional[str] = None, overwrite_header: Optional[str] = None) -> None:
         """Write statistics for a team to the Google Sheet.
         
         Args:
@@ -151,12 +155,12 @@ class StatsManager:
             raise ValueError(f"Team '{team_key}' not found in configuration")
 
         if section:
-            self._write_stats_for_section(team, section)
+            self._write_stats_for_section(team, section, overwrite_header)
         else:
             for section in self.stats_config.keys():
-                self._write_stats_for_section(team, section)
-            
-    def _write_stats_for_section(self, team: Team, section: str) -> None:
+                self._write_stats_for_section(team, section, overwrite_header)
+
+    def _write_stats_for_section(self, team: Team, section: str, overwrite_header: Optional[str] = None) -> None:
         # Start from column B
         current_col = 'B'
         
@@ -186,7 +190,7 @@ class StatsManager:
                         start_date,
                         end_date
                     )
-                self._write_stats(team, section, getter, current_col)
+                self._write_stats(team, section, getter, current_col, overwrite_header)
             elif section == 'JIRA' and team.components:
                 # Get JIRA statistics
                 def getter():
@@ -195,7 +199,7 @@ class StatsManager:
                         start_date,
                         end_date
                     )
-                self._write_stats(team, section, getter, current_col)
+                self._write_stats(team, section, getter, current_col, overwrite_header)
             
             # Move to next column
             current_col = chr(ord(current_col) + 1) 
@@ -207,7 +211,7 @@ class StatsManager:
             team_key: Optional team key. If not provided, fills dates for all teams.
         """
         # Get teams to process
-        teams = [self.team_manager.by_key(team_key)] if team_key else self.team_manager.teams
+        teams = [self.team_manager.by_key(team_key)] if team_key else self.team_manager.teams.values()
         
         for team in teams:
             if not team:

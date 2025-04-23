@@ -42,6 +42,38 @@ def write_stats(team_key: str, section: str, team_config: str, stats_config: str
     click.echo(f"Successfully wrote statistics for team {team_key}")
 
 @cli.command()
+@click.argument('section')
+@click.argument('header', help='Header to overwrite. Should be a key in the stats config (e.g. mtta_str).')
+@click.option('--team-key', default=None, help='Team key to overwrite statistics for. If not provided, processes all teams.')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+@click.option('--stats-config', default='src/health/config/stats.yaml', help='Path to stats configuration file')
+def overwrite(section: str, header: str, team_key: Optional[str], team_config: str, stats_config: str):
+    """Overwrite statistics for a specific section and header.
+    
+    Args:
+        section: Section name to overwrite (e.g., PagerDuty)
+        header: Header name to overwrite
+        team_key: Optional team key. If not provided, processes all teams
+        team_config: Path to team configuration file
+        stats_config: Path to stats configuration file
+    """
+    manager = StatsManager(team_config, stats_config)
+    
+    if team_key:
+        # Process single team
+        manager.write_stats_for_team(team_key, section, header)
+        click.echo(f"Successfully overwrote {section}/{header} for team {team_key}")
+    else:
+        # Process all teams
+        teams = manager.team_manager.teams
+        for current_team_key, team in teams.items():
+            if not team:
+                continue
+            click.echo(f"Processing team: {team.name}")
+            manager.write_stats_for_team(current_team_key, section, header)
+        click.echo(f"Successfully overwrote {section}/{header} for all teams")
+
+@cli.command()
 @click.argument('team_key', required=False)
 def fill_dates(team_key: Optional[str] = None) -> None:
     """Fill date ranges in the Google Sheet for a team.
@@ -49,13 +81,9 @@ def fill_dates(team_key: Optional[str] = None) -> None:
     Args:
         team_key: Optional team key. If not provided, fills dates for all teams.
     """
-    try:
-        stats_manager = StatsManager()
-        stats_manager.fill_dates(team_key)
-        click.echo("Successfully filled dates")
-    except Exception as e:
-        click.echo(f"Error filling dates: {e}", err=True)
-        raise click.Abort()
+    stats_manager = StatsManager()
+    stats_manager.fill_dates(team_key)
+    click.echo("Successfully filled dates")
 
 @cli.command()
 @click.option('--skip-date-fill', is_flag=True, help='Skip filling dates before writing statistics')
@@ -65,28 +93,24 @@ def refresh_all(skip_date_fill: bool) -> None:
     Args:
         skip_date_fill: If True, skip filling dates before writing statistics
     """
-    try:
-        stats_manager = StatsManager()
-        
-        # Get all teams
-        teams = stats_manager.team_manager.teams
-        
-        for team_key, team in teams.items():
-            if not team:
-                continue
-                
-            click.echo(f"Processing team: {team.name}")
+    stats_manager = StatsManager()
+    
+    # Get all teams
+    teams = stats_manager.team_manager.teams
+    
+    for team_key, team in teams.items():
+        if not team:
+            continue
             
-            # Fill dates unless skipped
-            if not skip_date_fill:
-                click.echo("  Filling dates...")
-                stats_manager.fill_dates(team_key)
-                
-            # Write statistics for all sections
-            click.echo("  Writing statistics...")
-            stats_manager.write_stats_for_team(team_key)
-                
-        click.echo("Successfully refreshed all teams")
-    except Exception as e:
-        click.echo(f"Error refreshing teams: {e}", err=True)
-        raise click.Abort()
+        click.echo(f"Processing team: {team.name}")
+        
+        # Fill dates unless skipped
+        if not skip_date_fill:
+            click.echo("  Filling dates...")
+            stats_manager.fill_dates(team_key)
+            
+        # Write statistics for all sections
+        click.echo("  Writing statistics...")
+        stats_manager.write_stats_for_team(team_key)
+            
+    click.echo("Successfully refreshed all teams")

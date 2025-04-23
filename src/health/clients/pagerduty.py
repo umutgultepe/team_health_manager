@@ -187,7 +187,7 @@ class PagerDutyClient:
         timed_out = sum(1 for i in incidents if i.timed_out)
         high_urgency_incidents = sum(1 for i in incidents if i.high_urgency)
         # Calculate mean time to acknowledgment
-        acknowledgment_times = [i.time_to_acknowledgement for i in incidents if i.time_to_acknowledgement is not None]
+        acknowledgment_times = [i.time_to_acknowledgement for i in incidents if i.high_urgency and i.time_to_acknowledgement is not None]
         mean_time_to_ack = sum(acknowledgment_times, timedelta()) / len(acknowledgment_times) if acknowledgment_times else None
         
         # Calculate total response time
