@@ -43,7 +43,7 @@ def write_stats(team_key: str, section: str, team_config: str, stats_config: str
 
 @cli.command()
 @click.argument('section')
-@click.argument('header', help='Header to overwrite. Should be a key in the stats config (e.g. mtta_str).')
+@click.argument('header') # 'Header to overwrite. Should be a key in the stats config (e.g. mtta_str).'
 @click.option('--team-key', default=None, help='Team key to overwrite statistics for. If not provided, processes all teams.')
 @click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
 @click.option('--stats-config', default='src/health/config/stats.yaml', help='Path to stats configuration file')
