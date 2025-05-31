@@ -28,20 +28,37 @@ class ExecutionAnalyzer:
         all_stories = []
         for epic in epics:
             problems.extend(self._analyze_status(epic))
-            if epic.get_status() == IssueStatus.IN_PROGRESS:
-                stories = self.jira_client.get_stories_by_epic(epic.key)
-                if not stories:
-                    problems.append(TrackingProblem(
-                        problem_type=ProblemType.IN_PROGRESS_EPIC_WITHOUT_STORIES,
-                        description=f"Epic {epic.key} is in IN_PROGRESS status but has no stories",
-                        issue=epic
-                    ))
-                else:
-                    for story in stories:
-                        problems.extend(self._analyze_status(story))
-                        all_stories.append(story)
+            if epic.get_status() != IssueStatus.IN_PROGRESS:
+                continue
+
+            stories = self.jira_client.get_stories_by_epic(epic.key)
+            if not stories:
+                problems.append(TrackingProblem(
+                    problem_type=ProblemType.IN_PROGRESS_EPIC_WITHOUT_STORIES,
+                    description=f"Epic {epic.key} is in IN_PROGRESS status but has no stories",
+                    issue=epic
+                ))
+            else:
+                for story in stories:
+                    problems.extend(self._analyze_status(story))
+                    all_stories.append(story)
+
+            if not self._has_epic_update(epic):
+                problems.append(TrackingProblem(
+                    problem_type=ProblemType.MISSING_EPIC_UPDATE,
+                    description=f"Epic {epic.key} is in progress but has no recent update (older than 7 days)",
+                    issue=epic
+                ))
         return ExecutionReport(epics=epics, problems=problems, stories=all_stories)
-    
+
+    def _has_epic_update(self, epic: Epic) -> bool:
+        if not epic.last_epic_update:
+            return False
+        if not epic.last_epic_update.updated:
+            return False
+        last_update_age = date.today() - epic.last_epic_update.updated.date()
+        return last_update_age.days < 7
+
     def _analyze_status(self, issue: Issue) -> List[TrackingProblem]:
         problems = []
         issue_type_name = type(issue).__name__
