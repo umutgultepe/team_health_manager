@@ -7,3 +7,4 @@ google-auth-httplib2==0.2.0
 google-api-python-client==2.118.0
 slack-sdk>=3.27.0  # Required for Slack API interactions
 tenacity>=8.0.0  # Required for retry functionality in API calls 
+jira>=3.5.1

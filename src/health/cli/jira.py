@@ -124,3 +124,63 @@ def arn_counts(start: datetime, end: datetime, config: str):
         click.echo(f"Error: {str(e)}", err=True)
         return
         
+
+def print_epic_or_story(issue) -> None:
+    """Print Epic or Story issue details in a formatted way."""
+    click.echo(f"\nKey: {issue.key}")
+    click.echo(f"Summary: {issue.summary}")
+    click.echo(f"Status: {issue.status}")
+    click.echo(f"Project: {issue.project_key}")
+    if issue.due_date:
+        click.echo(f"Due Date: {issue.due_date.strftime('%Y-%m-%d')}")
+    else:
+        click.echo("Due Date: Not set")
+    if issue.start_date:
+        click.echo(f"Start Date: {issue.start_date.strftime('%Y-%m-%d')}")
+    else:
+        click.echo("Start Date: Not set")
+    if hasattr(issue, 'description') and issue.description:
+        # Truncate long descriptions
+        desc = issue.description[:100] + "..." if len(issue.description) > 100 else issue.description
+        click.echo(f"Description: {desc}")
+    click.echo("-" * 80)
+
+@cli.command()
+@click.argument('project_key')
+@click.argument('label')
+def list_epics(project_key: str, label: str):
+    """List all epics in a project with a specific label.
+    
+    Args:
+        project_key: The JIRA project key (e.g., 'PROJ')
+        label: The label to filter epics by
+    """
+    client = JIRAClient()
+    epics = client.get_epics_by_label(project_key, label)
+    
+    if not epics:
+        click.echo(f"No epics found in project {project_key} with label '{label}'")
+        return
+        
+    click.echo(f"\nFound {len(epics)} epics in project {project_key} with label '{label}':")
+    for epic in epics:
+        print_epic_or_story(epic)
+
+@cli.command()
+@click.argument('epic_key')
+def list_stories(epic_key: str):
+    """List all stories under an epic with their due dates.
+    
+    Args:
+        epic_key: The JIRA epic key (e.g., 'PROJ-123')
+    """
+    client = JIRAClient()
+    stories = client.get_stories_by_epic(epic_key)
+    
+    if not stories:
+        click.echo(f"No stories found under epic {epic_key}")
+        return
+        
+    click.echo(f"\nFound {len(stories)} stories under epic {epic_key}:")
+    for story in stories:
+        print_epic_or_story(story)

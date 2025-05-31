@@ -6,7 +6,7 @@ from .clients.sheets import SheetsClient
 from .clients.pagerduty import PagerDutyClient
 from .clients.jira import JIRAClient
 from .team_manager import TeamManager
-from .dataclass import PagerDutyStats, JIRAIssueStats, Team
+from .dataclass import PagerDutyStats, ARNStats, Team
 class StatsManager:
     """Manager for handling statistics and writing them to Google Sheets."""
     

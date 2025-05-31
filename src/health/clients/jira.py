@@ -1,20 +1,25 @@
 import requests
-from datetime import datetime
-from typing import List
-from ..dataclass import JIRAIssue, JIRAIssueStats
+from datetime import datetime, date
+from typing import List, Union, Optional
+from jira import JIRA
+from ..dataclass import ARN, ARNStats, Epic, Story
 from ..config.credentials import JIRA_API_TOKEN, JIRA_EMAIL, JIRA_DOMAIN
 
 class JIRAClient:
     def __init__(self):
         """Initialize JIRA client with API credentials."""
-        self.base_url = f"https://{JIRA_DOMAIN}/rest/api/3"
+        self.server_url = f"https://{JIRA_DOMAIN}/rest/api/3"
         self.auth = (JIRA_EMAIL, JIRA_API_TOKEN)
         self.headers = {
             "Accept": "application/json"
         }
+        self.jira = JIRA(
+            server=f"https://{JIRA_DOMAIN}/",
+            basic_auth=self.auth
+        )
 
-    def _parse_issue(self, issue_data: dict) -> JIRAIssue:
-        """Parse raw issue data into a JIRAIssue object."""
+    def _parse_issue(self, issue_data: dict) -> ARN:
+        """Parse raw issue data into an ARN object."""
         if not issue_data:
             raise ValueError("Empty issue data received")
             
@@ -44,19 +49,83 @@ class JIRAClient:
         reporter_data = fields.get('reporter')
         reporter = reporter_data.get('displayName', 'Unknown') if reporter_data else 'Unknown'
         
-        return JIRAIssue(
+        # Parse dates
+        due_date = self._parse_due_date(fields.get('duedate'))
+        start_date = self._parse_start_date(fields.get('customfield_10014'))
+        
+        return ARN(
+            project_key=issue_data.get('key', '').split('-')[0],
             key=issue_data.get('key', ''),
             summary=fields.get('summary', ''),
             description=fields.get('description', ''),
+            status=fields.get('status', {}).get('name', ''),
+            due_date=due_date,
+            start_date=start_date,
             created=created,
             updated=updated,
-            status=fields.get('status', {}).get('name', ''),
             components=components,
             assignee=assignee,
             reporter=reporter
         )
 
-    def list_arns(self, components: List[str], start_time: datetime, end_time: datetime) -> List[JIRAIssue]:
+    def get_epics_by_label(self, project_key: str, label: str) -> List[Epic]:
+        """
+        Retrieve all epics in a project that have a specific label.
+        
+        Args:
+            project_key (str): The project key (e.g., 'PROJ')
+            label (str): The label to filter by
+            
+        Returns:
+            List[Epic]: List of Epic objects matching the criteria
+            
+        Raises:
+            JIRAError: If there's an error communicating with JIRA
+        """
+        # Construct JQL query to find epics with the given label in the project
+        jql = f'project = {project_key} AND issuetype = Epic AND labels = {label}'
+        
+        # Search for issues matching our criteria
+        issues = self.jira.search_issues(
+            jql,
+            fields='summary,description,status,assignee,fixVersions,duedate,issuetype,customfield_10014'
+        )
+        
+        epics = []
+        for issue in issues:
+            epic = self._create_issue_from_response(issue, project_key)
+            epics.append(epic)
+        
+        return epics
+    
+    def get_stories_by_epic(self, epic_key: str) -> List[Story]:
+        """
+        Retrieve all stories under a specific epic.
+        
+        Args:
+            epic_key (str): The epic's key (e.g., 'PROJ-123')
+            
+        Returns:
+            List[Story]: List of Story objects under the epic
+            
+        Raises:
+            JIRAError: If there's an error communicating with JIRA
+        """
+        jql = f'parent = {epic_key} AND issuetype = Story'
+        issues = self.jira.search_issues(
+            jql,
+            fields='summary,description,status,assignee,fixVersions,customfield_10016,priority,created,updated,duedate,issuetype,customfield_10014'  # 10016 is story points
+        )
+        
+        stories = []
+        for issue in issues:
+            story = self._create_issue_from_response(issue)
+            stories.append(story)
+        
+        return stories 
+
+
+    def list_arns(self, components: List[str], start_time: datetime, end_time: datetime) -> List[ARN]:
         """
         List ARN project issues with specified components within a time range.
         
@@ -66,83 +135,76 @@ class JIRAClient:
             end_time (datetime): End of the time range
             
         Returns:
-            List[JIRAIssue]: List of matching JIRA issues
+            List[ARN]: List of matching ARN issues
             
         Raises:
             requests.exceptions.RequestException: If the API request fails
         """
-        try:
-            # Ensure components is a list and not empty
-            if not isinstance(components, list):
-                raise ValueError("Components must be a list")
-            if not components:
-                raise ValueError("Components list cannot be empty")
+        # Ensure components is a list and not empty
+        if not isinstance(components, list):
+            raise ValueError("Components must be a list")
+        if not components:
+            raise ValueError("Components list cannot be empty")
+        
+        # Convert components list to JQL format using IN statement
+        components_list = ", ".join([f'"{c}"' for c in components])
+        components_jql = f'component IN ({components_list})'
+        
+        # Build JQL query
+        jql = (
+            f'project = ARN AND '
+            f'{components_jql} AND '
+            f'created >= "{start_time.strftime("%Y-%m-%d %H:%M")}" AND '
+            f'created <= "{end_time.strftime("%Y-%m-%d %H:%M")}"'
+        )
+        
+        # Prepare request parameters
+        params = {
+            'jql': jql,
+            'maxResults': 100,  # Maximum results per page
+            'fields': 'summary,description,created,updated,status,components,assignee,reporter,duedate,issuetype,customfield_10014'
+        }
+        
+        issues = []
+        start_at = 0
+        
+        while True:
+            # Update start_at for pagination
+            params['startAt'] = start_at
             
-            # Convert components list to JQL format using IN statement
-            components_list = ", ".join([f'"{c}"' for c in components])
-            components_jql = f'component IN ({components_list})'
-            
-            # Build JQL query
-            jql = (
-                f'project = ARN AND '
-                f'{components_jql} AND '
-                f'created >= "{start_time.strftime("%Y-%m-%d %H:%M")}" AND '
-                f'created <= "{end_time.strftime("%Y-%m-%d %H:%M")}"'
+            # Make API request
+            response = requests.get(
+                f"{self.server_url}/search",
+                auth=self.auth,
+                headers=self.headers,
+                params=params
             )
+            response.raise_for_status()
+            data = response.json()
             
-            # Prepare request parameters
-            params = {
-                'jql': jql,
-                'maxResults': 100,  # Maximum results per page
-                'fields': 'summary,description,created,updated,status,components,assignee,reporter'
-            }
-            
-            issues = []
-            start_at = 0
-            
-            while True:
-                # Update start_at for pagination
-                params['startAt'] = start_at
+            if not data:
+                raise ValueError("Empty response from JIRA API")
                 
-                # Make API request
-                response = requests.get(
-                    f"{self.base_url}/search",
-                    auth=self.auth,
-                    headers=self.headers,
-                    params=params
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                if not data:
-                    raise ValueError("Empty response from JIRA API")
-                    
-                # Process issues
-                for issue_data in data.get('issues', []):
-                    try:
-                        issues.append(self._parse_issue(issue_data))
-                    except ValueError as e:
-                        print(f"Warning: Skipping invalid issue: {str(e)}")
-                        continue
-                
-                # Check if we need to fetch more pages
-                total = data.get('total', 0)
-                start_at += len(data.get('issues', []))
-                
-                if start_at >= total:
-                    break
+            # Process issues
+            for issue_data in data.get('issues', []):
+                try:
+                    issues.append(self._parse_issue(issue_data))
+                except ValueError as e:
+                    print(f"Warning: Skipping invalid issue: {str(e)}")
+                    continue
             
-            return issues
+            # Check if we need to fetch more pages
+            total = data.get('total', 0)
+            start_at += len(data.get('issues', []))
             
-        except requests.exceptions.RequestException as e:
-            if hasattr(e.response, 'text'):
-                error_detail = e.response.text
-            else:
-                error_detail = str(e)
-            raise Exception(f"Error fetching JIRA issues: {str(e)}")
+            if start_at >= total:
+                break
+        
+        return issues
+        
 
-    def jira_statistics(self, components: List[str], start_time: datetime, end_time: datetime) -> JIRAIssueStats:
-        """Calculate statistics for JIRA issues.
+    def jira_statistics(self, components: List[str], start_time: datetime, end_time: datetime) -> ARNStats:
+        """Calculate statistics for ARN issues.
         
         Args:
             components: List of components to filter issues by
@@ -150,14 +212,54 @@ class JIRAClient:
             end_time: End time for the statistics
             
         Returns:
-            JIRAIssueStats object containing the statistics
+            ARNStats object containing the statistics
         """
         # Get all ARN issues for the components and time range
         arns = self.list_arns(components, start_time, end_time)
         
         # Calculate statistics
         total_arns = len(arns)
-        
-        return JIRAIssueStats(
+        return ARNStats(
             total_arns=total_arns
         ) 
+
+    def _create_issue_from_response(self, issue, project_key: str = None) -> Union[Epic, Story]:
+        """
+        Create an Epic or Story object from a JIRA issue response.
+        
+        Args:
+            issue: JIRA issue object
+            project_key (Optional[str]): Project key. If None, extracted from issue key
+            
+        Returns:
+            Union[Epic, Story]: Created issue object
+        """
+        due_date = self._parse_due_date(issue.fields.duedate)
+        start_date = self._parse_start_date(getattr(issue.fields, 'customfield_10014', None))
+        
+        common_args = {
+            'project_key': project_key or issue.key.split('-')[0],
+            'key': issue.key,
+            'summary': issue.fields.summary,
+            'description': issue.fields.description,
+            'status': issue.fields.status.name,
+            'due_date': due_date,
+            'start_date': start_date
+        }
+        
+        if getattr(issue.fields.issuetype, 'name', None) == 'Epic':
+            return Epic(**common_args)
+        else:
+            return Story(**common_args)
+
+    def _parse_due_date(self, due_date_str: Optional[str]) -> Optional[datetime.date]:
+        """Parse a JIRA due date string into a date object."""
+        if not due_date_str:
+            return None
+        return datetime.strptime(due_date_str, '%Y-%m-%d').date()
+
+    def _parse_start_date(self, start_date_str: Optional[str]) -> Optional[datetime.date]:
+        """Parse a JIRA start date string into a date object."""
+        if not start_date_str:
+            return None
+        return datetime.strptime(start_date_str, '%Y-%m-%d').date()

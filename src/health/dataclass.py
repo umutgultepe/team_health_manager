@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 
 @dataclass
@@ -94,19 +94,6 @@ class Incident:
                     break
 
 
-@dataclass
-class JIRAIssue:
-    """Represents a JIRA issue."""
-    key: str
-    summary: str
-    description: str
-    created: datetime
-    updated: datetime
-    status: str
-    components: List[str]
-    assignee: str
-    reporter: str
-
 
 @dataclass
 class PagerDutyStats:
@@ -160,8 +147,49 @@ class PagerDutyStats:
             return "N/A"
         return f"{self.total_response_time_hours:.2f}"
 
+@dataclass
+class Issue:
+    """Base class for JIRA issues."""
+    project_key: str
+    key: str
+    summary: str
+    description: Optional[str]
+    status: str
+    due_date: Optional[datetime.date] = None
+    start_date: Optional[datetime.date] = None
+
 
 @dataclass
-class JIRAIssueStats:
-    """Statistics for JIRA issues."""
+class ARN:
+    """Represents an ARN (Action Required Now) issue."""
+    # Required fields from Issue base class
+    project_key: str
+    key: str
+    summary: str
+    description: Optional[str]
+    status: str
+    # Required ARN-specific fields
+    created: datetime
+    updated: datetime
+    components: List[str]
+    assignee: str
+    reporter: str
+    # Optional fields with defaults
+    due_date: Optional[datetime.date] = None
+    start_date: Optional[datetime.date] = None
+
+
+@dataclass
+class Epic(Issue):
+    """Represents a JIRA epic."""
+    pass
+
+@dataclass
+class Story(Issue):
+    """Represents a JIRA story."""
+    pass 
+
+@dataclass
+class ARNStats:
+    """Statistics for ARN (Action Required Now) issues."""
     total_arns: int
