@@ -1,17 +1,17 @@
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from ..config.credentials import get_google_credentials, get_google_sheet_id
+from ..config.credentials import get_google_credentials
 from typing import Optional, List
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class SheetsClient:
     """Client for interacting with Google Sheets."""
     
-    def __init__(self):
+    def __init__(self, sheet_id: str):
         """Initialize the Sheets client with credentials."""
         self.credentials = get_google_credentials()
-        self.sheet_id = get_google_sheet_id()
+        self.sheet_id = sheet_id
         self.service = build('sheets', 'v4', credentials=self.credentials)
         
     def write_to_cell(self, tab_name: str, coordinate: str, text: str) -> None:

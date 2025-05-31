@@ -1,7 +1,7 @@
 from typing import List
 from datetime import date
 from .clients.jira import JIRAClient
-from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue
+from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats
 
 
 class ExecutionAnalyzer:
@@ -50,6 +50,40 @@ class ExecutionAnalyzer:
                     issue=epic
                 ))
         return ExecutionReport(epics=epics, problems=problems, stories=all_stories)
+
+    def build_statistics(self, epics: List[Epic]) -> ExecutionStats:
+        """Build execution statistics from a list of epics.
+        
+        Args:
+            epics: List of epics to analyze
+            
+        Returns:
+            ExecutionStats containing calculated statistics
+        """
+        report = self.analyze_epics(epics)
+        
+        # Count epics by status
+        in_progress_epics = sum(1 for epic in epics if epic.get_status() == IssueStatus.IN_PROGRESS)
+        
+        # Count problems by type
+        missing_start_date = sum(1 for problem in report.problems if problem.problem_type == ProblemType.MISSING_START_DATE)
+        missing_due_date = sum(1 for problem in report.problems if problem.problem_type == ProblemType.MISSING_DUE_DATE)
+        past_due_date = sum(1 for problem in report.problems if problem.problem_type == ProblemType.PAST_DUE_DATE)
+        in_progress_before_start_date = sum(1 for problem in report.problems if problem.problem_type == ProblemType.IN_PROGRESS_BEFORE_START_DATE)
+        missing_epic_update = sum(1 for problem in report.problems if problem.problem_type == ProblemType.MISSING_EPIC_UPDATE)
+        in_progress_epic_without_stories = sum(1 for problem in report.problems if problem.problem_type == ProblemType.IN_PROGRESS_EPIC_WITHOUT_STORIES)
+        due_date_changed = sum(1 for problem in report.problems if problem.problem_type == ProblemType.DUE_DATE_CHANGED)
+        
+        return ExecutionStats(
+            in_progress_epics=in_progress_epics,
+            missing_start_date=missing_start_date,
+            missing_due_date=missing_due_date,
+            past_due_date=past_due_date,
+            in_progress_before_start_date=in_progress_before_start_date,
+            missing_epic_update=missing_epic_update,
+            in_progress_epic_without_stories=in_progress_epic_without_stories,
+            due_date_changed=due_date_changed
+        )
 
     def _has_epic_update(self, epic: Epic) -> bool:
         if not epic.last_epic_update:

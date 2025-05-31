@@ -1,0 +1,13 @@
+Project:
+  in_progress_epics: In Progress Epics
+  missing_start_date: Missing Start Date
+  missing_due_date: Missing Due Date
+  past_due_date: Past Due Date
+  in_progress_before_start_date: In Progress Before Start Date
+  missing_epic_update: Missing Epic Update
+  in_progress_epic_without_stories: In Progress Epic Without Stories
+  due_date_changed: Due Date Changed
+
+Vulnerability:
+  open_vulnerabilities: Open Vulnerabilities
+  vulnerabilities_past_due_date: Vulnerabilities Past Due Date

@@ -1,17 +1,19 @@
-import yaml
-import os
+
 from typing import Dict, Any, Optional, Callable
 from datetime import datetime, timezone, timedelta
-from .clients.sheets import SheetsClient
-from .clients.pagerduty import PagerDutyClient
-from .clients.jira import JIRAClient
 from .team_manager import TeamManager
-from .dataclass import PagerDutyStats, ARNStats, Team
+from .dataclass import Team
+from .statistics_generator import StatisticsGenerator
+from .config.credentials import get_health_sheet_id
+from .clients.sheets import SheetsClient
+
 class StatsManager:
     """Manager for handling statistics and writing them to Google Sheets."""
     
-    def __init__(self, team_config_path: str = 'src/health/config/team.yaml',
-                 stats_config_path: str = 'src/health/config/stats.yaml'):
+    def __init__(self, 
+                sheets_client: SheetsClient,
+                statistics_generator: StatisticsGenerator,
+                team_config_path: str = 'src/health/config/team.yaml'):
         """Initialize the StatsManager.
         
         Args:
@@ -19,22 +21,9 @@ class StatsManager:
             stats_config_path: Path to stats configuration file
         """
         self.team_manager = TeamManager(team_config_path)
-        self.sheets_client = SheetsClient()
-        self.pagerduty_client = PagerDutyClient()
-        self.jira_client = JIRAClient()
-        self.stats_config = self._load_stats_config(stats_config_path)
-        
-    def _load_stats_config(self, config_path: str) -> Dict[str, Dict[str, str]]:
-        """Load statistics configuration from YAML file.
-        
-        Args:
-            config_path: Path to the stats configuration file
-            
-        Returns:
-            Dictionary containing the stats configuration
-        """
-        with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
+        self.sheets_client = sheets_client
+        self.generator = statistics_generator
+        self.stats_config = self.generator.config
             
     def write_headers_for_team(self, team_key: str) -> None:
         """Write headers for a team's statistics in the Google Sheet.
@@ -180,26 +169,8 @@ class StatsManager:
             end_date = datetime.strptime(end_date_str, '%m/%d/%Y').replace(
                 hour=23, minute=59, second=59, tzinfo=timezone.utc
             )
-            
-            # Write statistics based on section
-            if section == 'PagerDuty':
-                # Get PagerDuty statistics
-                def getter():
-                    return self.pagerduty_client.policy_statistics(
-                        team.escalation_policy,
-                        start_date,
-                        end_date
-                    )
-                self._write_stats(team, section, getter, current_col, overwrite_header)
-            elif section == 'JIRA' and team.components:
-                # Get JIRA statistics
-                def getter():
-                    return self.jira_client.jira_statistics(
-                        team.components,
-                        start_date,
-                        end_date
-                    )
-                self._write_stats(team, section, getter, current_col, overwrite_header)
+            getter = self.generator.get_section_writer(section, team, start_date, end_date)
+            self._write_stats(team, section, getter, current_col, overwrite_header)
             
             # Move to next column
             current_col = chr(ord(current_col) + 1) 

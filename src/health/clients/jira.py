@@ -59,8 +59,6 @@ class JIRAClient:
             summary=fields.get('summary', ''),
             description=fields.get('description', ''),
             status=fields.get('status', {}).get('name', ''),
-            due_date=due_date,
-            start_date=start_date,
             created=created,
             updated=updated,
             components=components,

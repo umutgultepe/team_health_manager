@@ -7,6 +7,16 @@ from ..execution_analyzer import ExecutionAnalyzer
 from ..team_manager import TeamManager
 from ..dataclass import Epic
 from .base import cli
+from ..config.credentials import get_execution_sheet_id
+from ..clients.sheets import SheetsClient
+from ..statistics_generator import ExecutionStatistics
+from ..stats_manager import StatsManager
+
+def get_stats_manager(label: str, team_config: str = 'src/health/config/team.yaml', stats_config: str = 'src/health/config/execution_stats.yaml'):
+    sheets_client = SheetsClient(get_execution_sheet_id())
+    jira_client = JIRAClient()
+    statistics_generator = ExecutionStatistics(jira_client, label)
+    return StatsManager(sheets_client, statistics_generator, team_config)
 
 
 def print_execution_report(report):
@@ -59,6 +69,40 @@ def print_execution_report(report):
     
     click.echo("\n" + "=" * 50)
 
+@cli.command()
+@click.argument('team_key')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+@click.option('--stats-config', default='src/health/config/stats.yaml', help='Path to stats configuration file')
+def write_execution_headers(team_key: str, team_config: str, stats_config: str):
+    """Write headers for a team's statistics in the Google Sheet.
+    
+    Args:
+        team_key: Key of the team to write headers for
+        team_config: Path to team configuration file
+        stats_config: Path to stats configuration file
+    """
+    manager = get_stats_manager("no_label", team_config, stats_config)
+    manager.write_headers_for_team(team_key)
+    click.echo(f"Successfully wrote headers for team {team_key}")
+
+@cli.command()
+@click.argument('team_key')
+@click.argument('label')
+@click.option('--section', default=None, help='Section to write statistics for (e.g., PagerDuty)')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+@click.option('--stats-config', default='src/health/config/stats.yaml', help='Path to stats configuration file')
+def write_execution_stats(team_key: str, label: str, section: str, team_config: str, stats_config: str):
+    """Write statistics for a team to the Google Sheet.
+    
+    Args:
+        team_key: Key of the team to write statistics for
+        section: Optional section name to limit writing to
+        team_config: Path to team configuration file
+        stats_config: Path to stats configuration file
+    """
+    manager = get_stats_manager(label, team_config, stats_config)
+    manager.write_stats_for_team(team_key, section)
+    click.echo(f"Successfully wrote statistics for team {team_key}")
 
 @cli.command()
 @click.argument('team_key')

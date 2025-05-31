@@ -1,7 +1,20 @@
 import click
 from ..stats_manager import StatsManager
+from ..statistics_generator import HealthStatistics
+from ..clients.sheets import SheetsClient
+from ..clients.pagerduty import PagerDutyClient
+from ..clients.jira import JIRAClient
+from ..config.credentials import get_health_sheet_id
 from .base import cli
 from typing import Optional
+
+
+def get_stats_manager(team_config: str = 'src/health/config/team.yaml', stats_config: str = 'src/health/config/stats.yaml'):
+    sheets_client = SheetsClient(get_health_sheet_id())
+    pagerduty_client = PagerDutyClient()
+    jira_client = JIRAClient()
+    statistics_generator = HealthStatistics(pagerduty_client, jira_client)
+    return StatsManager(sheets_client, statistics_generator, team_config)
 
 @cli.command()
 @click.argument('team_key')
@@ -15,13 +28,9 @@ def write_headers(team_key: str, team_config: str, stats_config: str):
         team_config: Path to team configuration file
         stats_config: Path to stats configuration file
     """
-    try:
-        manager = StatsManager(team_config, stats_config)
-        manager.write_headers_for_team(team_key)
-        click.echo(f"Successfully wrote headers for team {team_key}")
-    except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
-        return
+    manager = get_stats_manager(team_config, stats_config)
+    manager.write_headers_for_team(team_key)
+    click.echo(f"Successfully wrote headers for team {team_key}")
 
 @cli.command()
 @click.argument('team_key')
@@ -37,7 +46,7 @@ def write_stats(team_key: str, section: str, team_config: str, stats_config: str
         team_config: Path to team configuration file
         stats_config: Path to stats configuration file
     """
-    manager = StatsManager(team_config, stats_config)
+    manager = get_stats_manager(team_config, stats_config)
     manager.write_stats_for_team(team_key, section)
     click.echo(f"Successfully wrote statistics for team {team_key}")
 
@@ -57,7 +66,7 @@ def overwrite(section: str, header: str, team_key: Optional[str], team_config: s
         team_config: Path to team configuration file
         stats_config: Path to stats configuration file
     """
-    manager = StatsManager(team_config, stats_config)
+    manager = get_stats_manager(team_config, stats_config)
     
     if team_key:
         # Process single team
@@ -81,7 +90,7 @@ def fill_dates(team_key: Optional[str] = None) -> None:
     Args:
         team_key: Optional team key. If not provided, fills dates for all teams.
     """
-    stats_manager = StatsManager()
+    stats_manager = get_stats_manager()
     stats_manager.fill_dates(team_key)
     click.echo("Successfully filled dates")
 
@@ -93,7 +102,7 @@ def refresh_all(skip_date_fill: bool) -> None:
     Args:
         skip_date_fill: If True, skip filling dates before writing statistics
     """
-    stats_manager = StatsManager()
+    stats_manager = get_stats_manager()
     
     # Get all teams
     teams = stats_manager.team_manager.teams

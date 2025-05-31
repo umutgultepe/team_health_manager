@@ -1,6 +1,7 @@
 import click
 from ..clients.sheets import SheetsClient
 from .base import cli
+from ..config.credentials import get_health_sheet_id
 
 @cli.command()
 @click.argument('tab_name')
@@ -15,7 +16,7 @@ def fill_cell(tab_name: str, coordinate: str, text: str):
         text: Text to write to the cell
     """
     try:
-        client = SheetsClient()
+        client = SheetsClient(get_health_sheet_id())
         result = client.write_to_cell(tab_name, coordinate, text)
         click.echo(f"Successfully wrote to cell {coordinate} in tab '{tab_name}'")
     except Exception as e:

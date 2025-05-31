@@ -245,3 +245,15 @@ class ExecutionReport:
     epics: List[Epic]
     problems: List[TrackingProblem]
     stories: List[Story]
+
+@dataclass
+class ExecutionStats:
+    in_progress_epics: int
+    missing_start_date: int
+    missing_due_date: int
+    past_due_date: int
+    in_progress_before_start_date: int
+    missing_epic_update: int
+    in_progress_epic_without_stories: int
+    due_date_changed: int
+
