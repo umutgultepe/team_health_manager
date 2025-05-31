@@ -164,7 +164,8 @@ STATUS_MAP = {
     "blocked": IssueStatus.IN_PROGRESS,
     "done": IssueStatus.DONE,
     "duplicate": IssueStatus.INVALID,
-    "wont fix": IssueStatus.INVALID
+    "wont fix": IssueStatus.INVALID,
+    "code review / pending push": IssueStatus.IN_PROGRESS,
 }
 
 @dataclass
@@ -175,47 +176,50 @@ class Issue:
     summary: str
     description: Optional[str]
     status: str
-    due_date: Optional[datetime.date] = None
-    start_date: Optional[datetime.date] = None
 
     def get_status(self) -> IssueStatus:
         return STATUS_MAP[self.status.lower()]
 
 
 @dataclass
-class ARN:
+class ARN(Issue):
     """Represents an ARN (Action Required Now) issue."""
-    # Required fields from Issue base class
-    project_key: str
-    key: str
-    summary: str
-    description: Optional[str]
-    status: str
-    # Required ARN-specific fields
     created: datetime
     updated: datetime
     components: List[str]
     assignee: str
     reporter: str
-    # Optional fields with defaults
-    due_date: Optional[datetime.date] = None
-    start_date: Optional[datetime.date] = None
+
+class EpicUpdateStatus(Enum):
+    ON_TRACK = "On Track"
+    AT_RISK = "At Risk"
+    OFF_TRACK = "Off Track"
+
+@dataclass
+class EpicUpdate:
+    updated: datetime # customfield_10386
+    content: str # customfield_10387
+    status: EpicUpdateStatus # customfield_10379
 
 
 @dataclass
 class Epic(Issue):
     """Represents a JIRA epic."""
-    pass
+    due_date: Optional[datetime.date] = None
+    start_date: Optional[datetime.date] = None
+    last_epic_update: Optional[EpicUpdate] = None
 
 @dataclass
 class Story(Issue):
     """Represents a JIRA story."""
-    pass 
+    due_date: Optional[datetime.date] = None
+    start_date: Optional[datetime.date] = None
 
 @dataclass
 class ARNStats:
     """Statistics for ARN (Action Required Now) issues."""
     total_arns: int
+
 
 
 

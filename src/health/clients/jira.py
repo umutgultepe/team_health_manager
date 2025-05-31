@@ -1,8 +1,8 @@
 import requests
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Union, Optional
 from jira import JIRA
-from ..dataclass import ARN, ARNStats, Epic, Story
+from ..dataclass import ARN, ARNStats, Epic, Story, EpicUpdate, EpicUpdateStatus
 from ..config.credentials import JIRA_API_TOKEN, JIRA_EMAIL, JIRA_DOMAIN
 
 class JIRAClient:
@@ -88,7 +88,7 @@ class JIRAClient:
         # Search for issues matching our criteria
         issues = self.jira.search_issues(
             jql,
-            fields='summary,description,status,assignee,fixVersions,duedate,issuetype,customfield_10014'
+            fields='summary,description,status,assignee,fixVersions,duedate,issuetype,customfield_10014,customfield_10386,customfield_10387,customfield_10379'
         )
         
         epics = []
@@ -248,7 +248,9 @@ class JIRAClient:
         }
         
         if getattr(issue.fields.issuetype, 'name', None) == 'Epic':
-            return Epic(**common_args)
+            # Parse epic update if present
+            epic_update = self._parse_epic_update(issue)
+            return Epic(**common_args, last_epic_update=epic_update)
         else:
             return Story(**common_args)
 
@@ -263,3 +265,55 @@ class JIRAClient:
         if not start_date_str:
             return None
         return datetime.strptime(start_date_str, '%Y-%m-%d').date()
+
+    def _parse_epic_update(self, issue) -> Optional[EpicUpdate]:
+        """Parse epic update fields from a JIRA issue.
+        
+        Args:
+            issue: JIRA issue object
+            
+        Returns:
+            EpicUpdate object if epic update data is present and content is not empty, None otherwise
+        """
+        # Get epic update fields
+        update_date_str = getattr(issue.fields, 'customfield_10386', None)
+        content = getattr(issue.fields, 'customfield_10387', None)
+        status_str = getattr(issue.fields, 'customfield_10379', None)
+        
+        # Only create EpicUpdate if content is not empty
+        if not content or content.strip() == '':
+            return None
+        
+        # Parse update date
+        updated = None
+        if update_date_str:
+            try:
+                if 'T' in update_date_str:
+                    # ISO format with time
+                    updated = datetime.fromisoformat(update_date_str.replace('Z', '+00:00'))
+                else:
+                    # Simple date format - assume midnight UTC
+                    updated = datetime.strptime(update_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                updated = None
+        
+        # Parse status
+        status = EpicUpdateStatus.ON_TRACK  # Default status
+        if status_str:
+            try:
+                # Handle different possible status formats
+                status_lower = status_str.value.lower().strip()
+                if 'at risk' in status_lower or 'at_risk' in status_lower:
+                    status = EpicUpdateStatus.AT_RISK
+                elif 'off track' in status_lower or 'off_track' in status_lower:
+                    status = EpicUpdateStatus.OFF_TRACK
+                elif 'on track' in status_lower or 'on_track' in status_lower:
+                    status = EpicUpdateStatus.ON_TRACK
+            except (ValueError, TypeError):
+                status = EpicUpdateStatus.ON_TRACK
+        
+        return EpicUpdate(
+            updated=updated,
+            content=content.strip(),
+            status=status
+        )

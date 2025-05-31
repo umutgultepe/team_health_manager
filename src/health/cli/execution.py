@@ -1,6 +1,7 @@
 import click
 import sys
 from typing import List
+from ..dataclass import IssueStatus
 from ..clients.jira import JIRAClient
 from ..execution_analyzer import ExecutionAnalyzer
 from ..team_manager import TeamManager
@@ -119,3 +120,88 @@ def team_execution_report(team_key: str, label: str, team_config: str):
     
     # Print the report
     print_execution_report(report)
+
+
+@cli.command()
+@click.argument('team_key')
+@click.argument('label')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+def epic_updates(team_key: str, label: str, team_config: str):
+    """Show epic updates for in-progress epics of a team with a specific label.
+    
+    This command:
+    1. Looks up the team and gets their project keys
+    2. Fetches all epics with the specified label from each project
+    3. Shows epic updates for epics that are in IN_PROGRESS status
+    
+    Args:
+        team_key: Key of the team to analyze (e.g., 'app_foundations')
+        label: Label to filter epics by (e.g., 'Q4-2024')
+        team_config: Path to team configuration file
+    """
+    # Load team configuration
+    team_manager = TeamManager(team_config)
+    team = team_manager.by_key(team_key)
+    
+    if not team:
+        click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
+        sys.exit(1)
+    
+    # Check if team has project keys
+    if not hasattr(team, 'project_keys') or not team.project_keys:
+        click.echo(f"Error: Team '{team.name}' has no project keys configured", err=True)
+        sys.exit(1)
+    
+    click.echo(f"🔍 Fetching epic updates for team: {team.name}")
+    click.echo(f"📋 Label: {label}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
+    
+    # Initialize JIRA client
+    jira_client = JIRAClient()
+    
+    # Collect epics from all project keys
+    all_epics: List[Epic] = []
+    
+    for project_key in team.project_keys:
+        click.echo(f"  ↳ Fetching epics from project {project_key}...")
+        epics = jira_client.get_epics_by_label(project_key, label)
+        all_epics.extend(epics)
+        click.echo(f"    Found {len(epics)} epics in {project_key}")
+    
+    if not all_epics:
+        click.echo(f"\n❌ No epics found with label '{label}' in any of the team's projects")
+        return
+    
+    # Filter for IN_PROGRESS epics
+    in_progress_epics = [epic for epic in all_epics if epic.get_status() == IssueStatus.IN_PROGRESS]
+    
+    if not in_progress_epics:
+        click.echo(f"\n📋 No in-progress epics found with label '{label}'")
+        return
+    
+    click.echo(f"\n🚧 Found {len(in_progress_epics)} in-progress epics:")
+    click.echo("=" * 80)
+    
+    for epic in in_progress_epics:
+        click.echo(f"\n🎯 Epic: {epic.key} - {epic.summary}")
+        click.echo(f"📊 Status: {epic.status}")
+        if epic.due_date:
+            click.echo(f"📅 Due Date: {epic.due_date.strftime('%Y-%m-%d')}")
+        else:
+            click.echo("📅 Due Date: Not set")
+        
+        # Show epic update if available
+        if epic.last_epic_update and epic.last_epic_update.content:
+            click.echo(f"\n📝 Latest Epic Update:")
+            if epic.last_epic_update.updated:
+                click.echo(f"   🕒 Updated: {epic.last_epic_update.updated.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            click.echo(f"   🚦 Status: {epic.last_epic_update.status.value}")
+            click.echo(f"   💬 Content:")
+            # Indent the content for better readability
+            content_lines = epic.last_epic_update.content.split('\n')
+            for line in content_lines:
+                click.echo(f"      {line}")
+        else:
+            click.echo("\n⚠️  No epic update available")
+        
+        click.echo("-" * 80)
