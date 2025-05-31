@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta, date
-
+from enum import Enum
 
 @dataclass
 class Team:
@@ -11,6 +11,7 @@ class Team:
     oncall_handle: str
     components: List[str]
     escalation_policy: str
+    project_keys: List[str]
 
 
 @dataclass
@@ -147,6 +148,25 @@ class PagerDutyStats:
             return "N/A"
         return f"{self.total_response_time_hours:.2f}"
 
+class IssueStatus(Enum):
+    TODO = "TODO"
+    IN_PROGRESS = "In Progress"
+    DONE = "Done"
+    INVALID = "Invalid"
+
+
+STATUS_MAP = {
+    "backlog": IssueStatus.TODO,
+    "todo": IssueStatus.TODO,
+    "to do": IssueStatus.TODO,
+    "in progress": IssueStatus.IN_PROGRESS,
+    "assigned": IssueStatus.IN_PROGRESS,
+    "blocked": IssueStatus.IN_PROGRESS,
+    "done": IssueStatus.DONE,
+    "duplicate": IssueStatus.INVALID,
+    "wont fix": IssueStatus.INVALID
+}
+
 @dataclass
 class Issue:
     """Base class for JIRA issues."""
@@ -157,6 +177,9 @@ class Issue:
     status: str
     due_date: Optional[datetime.date] = None
     start_date: Optional[datetime.date] = None
+
+    def get_status(self) -> IssueStatus:
+        return STATUS_MAP[self.status.lower()]
 
 
 @dataclass
@@ -193,3 +216,28 @@ class Story(Issue):
 class ARNStats:
     """Statistics for ARN (Action Required Now) issues."""
     total_arns: int
+
+
+
+class ProblemType(Enum):
+    MISSING_START_DATE = "No start date"
+    MISSING_DUE_DATE = "No due date"
+    PAST_DUE_DATE = "Past due date"
+    IN_PROGRESS_BEFORE_START_DATE = "In progress before start date"
+    MISSING_EPIC_UPDATE = "Missing epic update"
+    IN_PROGRESS_EPIC_WITHOUT_STORIES = "In progress epic without stories"
+    DUE_DATE_CHANGED = "Due date changed"
+
+
+@dataclass
+class TrackingProblem:
+    problem_type: ProblemType
+    description: str
+    issue: Issue
+
+@dataclass
+class ExecutionReport:
+    """Statistics for JIRA issues."""
+    epics: List[Epic]
+    problems: List[TrackingProblem]
+    stories: List[Story]

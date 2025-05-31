@@ -60,7 +60,8 @@ class TeamManager:
                 help_channel=team_config['help_channel'],
                 oncall_handle=team_config['oncall_handle'],
                 escalation_policy=team_config['escalation_policy'],
-                components=team_config.get("components", [])
+                components=team_config.get("components", []),
+                project_keys=team_config.get("project_keys", [])
             )
     
     def by_key(self, key: str) -> Optional[Team]:
