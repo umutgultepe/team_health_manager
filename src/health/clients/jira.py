@@ -2,7 +2,7 @@ import requests
 from datetime import datetime, date, timezone
 from typing import List, Union, Optional
 from jira import JIRA
-from ..dataclass import ARN, ARNStats, Epic, Story, EpicUpdate, EpicUpdateStatus
+from ..dataclass import ARN, ARNStats, Epic, Story, EpicUpdate, EpicUpdateStatus, Vulnerability
 from ..config.credentials import JIRA_API_TOKEN, JIRA_EMAIL, JIRA_DOMAIN
 
 class JIRAClient:
@@ -122,6 +122,34 @@ class JIRAClient:
         
         return stories 
 
+    def get_vulnerabilities_for_project(self, project_key: str) -> List[Vulnerability]:
+        """
+        Retrieve all vulnerabilities in a project.
+        
+        Args:
+            project_key (str): The project key (e.g., 'PROJ')
+            
+        Returns:
+            List[Vulnerability]: List of Vulnerability objects in the project
+            
+        Raises:
+            JIRAError: If there's an error communicating with JIRA
+        """
+        # Construct JQL query to find vulnerabilities in the project
+        jql = f'project = {project_key} AND issuetype = Vulnerability'
+        
+        # Search for issues matching our criteria
+        issues = self.jira.search_issues(
+            jql,
+            fields='summary,description,status,assignee,duedate,issuetype,customfield_10014'
+        )
+        
+        vulnerabilities = []
+        for issue in issues:
+            vulnerability = self._create_vulnerability_from_response(issue, project_key)
+            vulnerabilities.append(vulnerability)
+        
+        return vulnerabilities
 
     def list_arns(self, components: List[str], start_time: datetime, end_time: datetime) -> List[ARN]:
         """
@@ -251,6 +279,28 @@ class JIRAClient:
             return Epic(**common_args, last_epic_update=epic_update)
         else:
             return Story(**common_args)
+
+    def _create_vulnerability_from_response(self, issue, project_key: str = None) -> Vulnerability:
+        """
+        Create a Vulnerability object from a JIRA issue response.
+        
+        Args:
+            issue: JIRA issue object
+            project_key (Optional[str]): Project key. If None, extracted from issue key
+            
+        Returns:
+            Vulnerability: Created vulnerability object
+        """
+        due_date = self._parse_due_date(issue.fields.duedate)
+        
+        return Vulnerability(
+            project_key=project_key or issue.key.split('-')[0],
+            key=issue.key,
+            summary=issue.fields.summary,
+            description=issue.fields.description,
+            status=issue.fields.status.name,
+            due_date=due_date
+        )
 
     def _parse_due_date(self, due_date_str: Optional[str]) -> Optional[datetime.date]:
         """Parse a JIRA due date string into a date object."""

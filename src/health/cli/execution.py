@@ -249,3 +249,86 @@ def epic_updates(team_key: str, label: str, team_config: str):
             click.echo("\n⚠️  No epic update available")
         
         click.echo("-" * 80)
+
+@cli.command()
+@click.argument('team_key')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+def list_vulnerabilities(team_key: str, team_config: str):
+    """List all vulnerabilities for a team across all their projects.
+    
+    This command:
+    1. Looks up the team and gets their project keys
+    2. Fetches all vulnerabilities from each project
+    3. Displays a summary of vulnerabilities found
+    
+    Args:
+        team_key: Key of the team to analyze (e.g., 'app_foundations')
+        team_config: Path to team configuration file
+    """
+    # Load team configuration
+    team_manager = TeamManager(team_config)
+    team = team_manager.by_key(team_key)
+    
+    if not team:
+        click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
+        sys.exit(1)
+    
+    # Check if team has project keys
+    if not hasattr(team, 'project_keys') or not team.project_keys:
+        click.echo(f"Error: Team '{team.name}' has no project keys configured", err=True)
+        sys.exit(1)
+    
+    click.echo(f"🔍 Listing vulnerabilities for team: {team.name}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
+    
+    # Initialize JIRA client
+    jira_client = JIRAClient()
+    
+    # Collect vulnerabilities from all project keys
+    all_vulnerabilities = []
+    
+    for project_key in team.project_keys:
+        click.echo(f"\n  ↳ Fetching vulnerabilities from project {project_key}...")
+        vulnerabilities = jira_client.get_vulnerabilities_for_project(project_key)
+        all_vulnerabilities.extend(vulnerabilities)
+        click.echo(f"    Found {len(vulnerabilities)} vulnerabilities in {project_key}")
+        
+        # Show individual vulnerabilities for this project
+        if vulnerabilities:
+            for vuln in vulnerabilities:
+                status_emoji = "🔴" if vuln.get_status() in [IssueStatus.TODO, IssueStatus.IN_PROGRESS] else "🟢"
+                due_date_str = vuln.due_date.strftime('%Y-%m-%d') if vuln.due_date else "No due date"
+                click.echo(f"      {status_emoji} {vuln.key}: {vuln.summary}")
+                click.echo(f"        Status: {vuln.status} | Due: {due_date_str}")
+    
+    if not all_vulnerabilities:
+        click.echo(f"\n✅ No vulnerabilities found in any of the team's projects")
+        return
+    
+    # Print summary
+    click.echo(f"\n📊 Vulnerability Summary")
+    click.echo("=" * 50)
+    click.echo(f"📋 Total Vulnerabilities: {len(all_vulnerabilities)}")
+    
+    # Group by status
+    status_counts = {}
+    for vuln in all_vulnerabilities:
+        status = vuln.get_status().value if hasattr(vuln, 'get_status') else vuln.status
+        status_counts[status] = status_counts.get(status, 0) + 1
+    
+    click.echo(f"\n📈 Status Breakdown:")
+    for status, count in status_counts.items():
+        percentage = (count / len(all_vulnerabilities)) * 100
+        click.echo(f"  {status}: {count} ({percentage:.1f}%)")
+    
+    # Group by project
+    project_counts = {}
+    for vuln in all_vulnerabilities:
+        project_counts[vuln.project_key] = project_counts.get(vuln.project_key, 0) + 1
+    
+    click.echo(f"\n🎯 Project Breakdown:")
+    for project, count in project_counts.items():
+        percentage = (count / len(all_vulnerabilities)) * 100
+        click.echo(f"  {project}: {count} ({percentage:.1f}%)")
+    
+    click.echo("\n" + "=" * 50)

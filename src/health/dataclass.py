@@ -165,6 +165,7 @@ STATUS_MAP = {
     "done": IssueStatus.DONE,
     "duplicate": IssueStatus.INVALID,
     "wont fix": IssueStatus.INVALID,
+    "won't fix": IssueStatus.INVALID,
     "code review / pending push": IssueStatus.IN_PROGRESS,
 }
 
@@ -208,6 +209,11 @@ class Epic(Issue):
     due_date: Optional[datetime.date] = None
     start_date: Optional[datetime.date] = None
     last_epic_update: Optional[EpicUpdate] = None
+
+@dataclass
+class Vulnerability(Issue):
+    """Represents a JIRA epic."""
+    due_date: Optional[datetime.date] = None
 
 @dataclass
 class Story(Issue):
@@ -257,3 +263,8 @@ class ExecutionStats:
     in_progress_epic_without_stories: int
     due_date_changed: int
 
+
+@dataclass
+class VulnerabilityStats:
+    open_vulnerabilities: int
+    vulnerabilities_past_due_date: int

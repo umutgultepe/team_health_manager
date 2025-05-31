@@ -1,7 +1,7 @@
 from typing import List
 from datetime import date
 from .clients.jira import JIRAClient
-from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats
+from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats, VulnerabilityStats, Vulnerability
 
 
 class ExecutionAnalyzer:
@@ -50,6 +50,24 @@ class ExecutionAnalyzer:
                     issue=epic
                 ))
         return ExecutionReport(epics=epics, problems=problems, stories=all_stories)
+
+    def build_vulnerability_stats(self, vulnerabilities: List[Vulnerability]) -> VulnerabilityStats:
+        """Analyze a list of vulnerabilities and return a VulnerabilityStats.
+        
+        Args:
+            vulnerabilities: List of vulnerabilities to analyze
+            
+        Returns:
+            VulnerabilityStats containing the analysis results
+        """
+        open_vulnerabilities = sum(1 for vulnerability in vulnerabilities 
+                                 if vulnerability.get_status() in [IssueStatus.TODO, IssueStatus.IN_PROGRESS])
+        past_due_date = sum(1 for vulnerability in vulnerabilities if vulnerability.due_date and vulnerability.due_date < date.today())
+
+        return VulnerabilityStats(
+            open_vulnerabilities=open_vulnerabilities,
+            vulnerabilities_past_due_date=past_due_date
+        )
 
     def build_statistics(self, epics: List[Epic]) -> ExecutionStats:
         """Build execution statistics from a list of epics.

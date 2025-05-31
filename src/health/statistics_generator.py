@@ -51,6 +51,8 @@ class ExecutionStatistics(StatisticsGenerator):
     def get_section_writer(self, section: str, team, start_date, end_date):
         if section == 'Project':
             return self._project_stats_getter(team, start_date, end_date)
+        elif section == 'Vulnerability':
+            return self._vulnerability_stats_getter(team, start_date, end_date)
         else:
             raise ValueError(f"Invalid section: {section}")
 
@@ -62,4 +64,14 @@ class ExecutionStatistics(StatisticsGenerator):
                 all_epics.extend(epics)
             analyzer = ExecutionAnalyzer(self.jira_client)
             return analyzer.build_statistics(all_epics)
+        return getter
+
+    def _vulnerability_stats_getter(self, team, start_date, end_date):
+        def getter():
+            all_vulnerabilities = []
+            for project_key in team.project_keys:
+                vulnerabilities = self.jira_client.get_vulnerabilities_for_project(project_key)
+                all_vulnerabilities.extend(vulnerabilities)
+            analyzer = ExecutionAnalyzer(self.jira_client)
+            return analyzer.build_vulnerability_stats(all_vulnerabilities)
         return getter
