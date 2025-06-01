@@ -1,5 +1,6 @@
 import click
 from datetime import datetime, timedelta, time, timezone
+from ..clients.ai import AIClient
 
 def get_default_time_range() -> tuple[datetime, datetime]:
     """
@@ -35,11 +36,23 @@ def ensure_utc_time(dt: datetime) -> datetime:
         return dt.replace(tzinfo=timezone.utc)
     return dt
 
+
 @click.group()
 def cli():
     """Team Health Reporter - A CLI tool for reporting team health metrics."""
     pass
 
+@cli.command()
+@click.argument('prompt')
+def ai(prompt: str):
+    """Call the ChatGPT API with the given prompt and print the response.
+    
+    Args:
+        prompt: The prompt to send to ChatGPT
+    """
+    client = AIClient()
+    response = client.call_api(prompt)
+    click.echo(response)
 
 # Import all subcommands
 from . import slack  # noqa

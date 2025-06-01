@@ -66,6 +66,25 @@ class JIRAClient:
             reporter=reporter
         )
 
+    def get_epic(self, epic_key: str) -> Epic:
+        """
+        Retrieve a specific epic by its key.
+        
+        Args:
+            epic_key (str): The epic's key (e.g., 'PROJ-123')
+            
+        Returns:
+            Epic: The Epic object
+            
+        Raises:
+            JIRAError: If there's an error communicating with JIRA
+        """
+        issue = self.jira.issue(
+            epic_key,
+            fields='summary,description,status,assignee,fixVersions,duedate,issuetype,customfield_10014,customfield_10386,customfield_10387,customfield_10379'
+        )
+        return self._create_issue_from_response(issue) 
+
     def get_epics_by_label(self, project_key: str, label: str) -> List[Epic]:
         """
         Retrieve all epics in a project that have a specific label.

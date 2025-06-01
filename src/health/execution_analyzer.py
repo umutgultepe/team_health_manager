@@ -1,7 +1,9 @@
 from typing import List
 from datetime import date
+import json
 from .clients.jira import JIRAClient
-from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats, VulnerabilityStats, Vulnerability
+from .clients.ai import AIClient
+from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats, EpicStatusEvaluation, Evaluation, VulnerabilityStats, Vulnerability
 
 
 class ExecutionAnalyzer:
@@ -50,6 +52,8 @@ class ExecutionAnalyzer:
                     issue=epic
                 ))
         return ExecutionReport(epics=epics, problems=problems, stories=all_stories)
+
+        
 
     def build_vulnerability_stats(self, vulnerabilities: List[Vulnerability]) -> VulnerabilityStats:
         """Analyze a list of vulnerabilities and return a VulnerabilityStats.
@@ -150,3 +154,100 @@ class ExecutionAnalyzer:
             ))
 
         return problems
+
+    def score_epic_update(self, epic: Epic) -> EpicStatusEvaluation:
+        """Score an epic update using AI evaluation.
+        
+        Args:
+            epic: Epic object containing the update to evaluate
+            
+        Returns:
+            EpicStatusEvaluation: Evaluation scores and explanations
+            
+        Raises:
+            ValueError: If epic has no last_epic_update or update content is empty
+            Exception: If AI API call fails or response cannot be parsed
+        """
+        # Validate epic has an update
+        if not epic.last_epic_update:
+            raise ValueError(f"Epic {epic.key} has no epic update to evaluate")
+        
+        if not epic.last_epic_update.content or epic.last_epic_update.content.strip() == '':
+            raise ValueError(f"Epic {epic.key} has empty update content")
+        
+        # Load the evaluation prompt template
+        try:
+            with open('src/health/config/evaluation.txt', 'r') as f:
+                prompt_template = f.read()
+        except FileNotFoundError:
+            raise FileNotFoundError("Evaluation prompt template not found at src/health/config/evaluation.txt")
+        
+        # Fill in the template variables
+        prompt = prompt_template.replace('{{status}}', epic.last_epic_update.status.value)
+        prompt = prompt.replace('{{update}}', epic.last_epic_update.content)
+        print(prompt)
+        
+        # Make AI API call
+        ai_client = AIClient()
+        try:
+            response = ai_client.call_api(prompt)
+        except Exception as e:
+            raise Exception(f"AI API call failed: {str(e)}")
+        
+        # Parse the JSON response
+        try:
+            print(response)
+            # Extract JSON from response (in case there's extra text)
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start == -1 or json_end == 0:
+                raise ValueError("No JSON found in AI response")
+            
+            json_str = response[json_start:json_end]
+            evaluation_data = json.loads(json_str)
+            
+            # Create Evaluation objects from the response
+            epic_status_clarity = Evaluation(
+                score=evaluation_data["Epic Status Clarity"]["score"],
+                explanation=evaluation_data["Epic Status Clarity"]["explanation"]
+            )
+            
+            deliverables_defined = Evaluation(
+                score=evaluation_data["Deliverables Defined"]["score"],
+                explanation=evaluation_data["Deliverables Defined"]["explanation"]
+            )
+            
+            risk_identification = Evaluation(
+                score=evaluation_data["Risk Identification"]["score"],
+                explanation=evaluation_data["Risk Identification"]["explanation"]
+            )
+            
+            mitigation_measures = Evaluation(
+                score=evaluation_data["Mitigation Measures"]["score"],
+                explanation=evaluation_data["Mitigation Measures"]["explanation"]
+            )
+            
+            status_enum_justification = Evaluation(
+                score=evaluation_data["Status Enum Justification"]["score"],
+                explanation=evaluation_data["Status Enum Justification"]["explanation"]
+            )
+            
+            delivery_confidence = Evaluation(
+                score=evaluation_data["Delivery Confidence"]["score"],
+                explanation=evaluation_data["Delivery Confidence"]["explanation"]
+            )
+            
+            average_score = evaluation_data["Average Score"]
+            
+            return EpicStatusEvaluation(
+                epic_status_clarity=epic_status_clarity,
+                deliverables_defined=deliverables_defined,
+                risk_identification=risk_identification,
+                mitigation_measures=mitigation_measures,
+                status_enum_justification=status_enum_justification,
+                delivery_confidence=delivery_confidence,
+                average_score=average_score
+            )
+            
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            raise Exception(f"Failed to parse AI response: {str(e)}. Response: {response}")

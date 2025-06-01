@@ -255,14 +255,29 @@ class ExecutionReport:
 @dataclass
 class ExecutionStats:
     in_progress_epics: int
+    missing_epic_update: int
     missing_start_date: int
     missing_due_date: int
     past_due_date: int
     in_progress_before_start_date: int
-    missing_epic_update: int
     in_progress_epic_without_stories: int
     due_date_changed: int
 
+
+@dataclass
+class Evaluation:
+    score: int
+    explanation: str
+
+@dataclass
+class EpicStatusEvaluation:
+    epic_status_clarity: Evaluation
+    deliverables_defined: Evaluation
+    risk_identification: Evaluation
+    mitigation_measures: Evaluation
+    status_enum_justification: Evaluation
+    delivery_confidence: Evaluation
+    average_score: float
 
 @dataclass
 class VulnerabilityStats:
