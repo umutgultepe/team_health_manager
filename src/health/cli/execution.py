@@ -60,12 +60,9 @@ def print_execution_report(report):
             click.echo(f"  {problem_type}: {count}")
         
         # Show first few problems as examples
-        click.echo("\n📋 Sample Problems:")
-        for i, problem in enumerate(report.problems[:5]):  # Show first 5 problems
+        click.echo("\n📋 Problems:")
+        for i, problem in enumerate(report.problems):  # Show first 5 problems
             click.echo(f"  {i+1}. {problem.description}")
-        
-        if problem_count > 5:
-            click.echo(f"  ... and {problem_count - 5} more problems")
     
     click.echo("\n" + "=" * 50)
 
