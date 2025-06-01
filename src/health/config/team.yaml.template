@@ -3,5 +3,8 @@ team_key:
   help_channel: "#slack-channel"
   oncall_handle: "@slack-user-group"
   escalation_policy: escalation_policy_id
+  project_keys:
+    - PRJ
+    - PRK
   components:
     - JIRA Component Name
