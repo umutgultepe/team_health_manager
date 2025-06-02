@@ -120,7 +120,7 @@ class ExecutionAnalyzer:
         problems = []
         issue_type_name = type(issue).__name__
 
-        if not issue.due_date:
+        if issue.get_status() in [IssueStatus.TODO, IssueStatus.IN_PROGRESS] and not issue.due_date:
             problems.append(TrackingProblem(
                 problem_type=ProblemType.MISSING_DUE_DATE,
                 description=f"{issue_type_name} {issue.key} has no due date set",
