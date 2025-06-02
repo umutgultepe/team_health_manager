@@ -16,6 +16,7 @@ class ExecutionAnalyzer:
             jira_client: An instance of JIRAClient for interacting with JIRA
         """
         self.jira_client = jira_client
+        self.ai_client = AIClient()
 
     def analyze_epics(self, epics: List[Epic]) -> ExecutionReport:
         """Analyze a list of epics and return an ExecutionReport.
@@ -125,7 +126,7 @@ class ExecutionAnalyzer:
                 description=f"{issue_type_name} {issue.key} has no due date set",
                 issue=issue
             ))
-        if not issue.start_date:
+        if issue.get_status() == IssueStatus.TODO and not issue.start_date:
             problems.append(TrackingProblem(
                 problem_type=ProblemType.MISSING_START_DATE,
                 description=f"{issue_type_name} {issue.key} has no start date set",
@@ -188,9 +189,8 @@ class ExecutionAnalyzer:
         print(prompt)
         
         # Make AI API call
-        ai_client = AIClient()
         try:
-            response = ai_client.call_api(prompt)
+            response = self.ai_client.call_api(prompt)
         except Exception as e:
             raise Exception(f"AI API call failed: {str(e)}")
         
