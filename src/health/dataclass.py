@@ -240,6 +240,7 @@ class ProblemType(Enum):
     MISSING_EPIC_UPDATE = "Missing epic update"
     IN_PROGRESS_EPIC_WITHOUT_STORIES = "In progress epic without stories"
     DUE_DATE_CHANGED = "Due date changed"
+    LOW_EPIC_UPDATE_SCORE = "Low epic update score"
 
 
 @dataclass
@@ -247,13 +248,6 @@ class TrackingProblem:
     problem_type: ProblemType
     description: str
     issue: Issue
-
-@dataclass
-class ExecutionReport:
-    """Statistics for JIRA issues."""
-    epics: List[Epic]
-    problems: List[TrackingProblem]
-    stories: List[Story]
 
 @dataclass
 class ExecutionStats:
@@ -274,10 +268,10 @@ class Evaluation:
 
 @dataclass
 class EpicStatusEvaluation:
+    epic_key: str
     epic_status_clarity: Evaluation
     deliverables_defined: Evaluation
-    risk_identification: Evaluation
-    mitigation_measures: Evaluation
+    risk_identification_and_mitigation: Evaluation
     status_enum_justification: Evaluation
     delivery_confidence: Evaluation
     average_score: float
@@ -286,3 +280,12 @@ class EpicStatusEvaluation:
 class VulnerabilityStats:
     open_vulnerabilities: int
     vulnerabilities_past_due_date: int
+    vulnerabilities: List[Vulnerability]
+
+@dataclass
+class ExecutionReport:
+    """Statistics for JIRA issues."""
+    epics: List[Epic]
+    problems: List[TrackingProblem]
+    stories: List[Story]
+    evaluations: Dict[str, EpicStatusEvaluation]

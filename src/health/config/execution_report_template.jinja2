@@ -1,0 +1,175 @@
+# EXECUTION REPORT
+
+## EPICS OVERVIEW
+{% for epic in epics %}
+### Epic: {{ epic.key }} - {{ epic.summary }}
+**Project:** {{ epic.project_key }}
+**Status:** {{ epic.status }}
+**Description:** {{ epic.description or "No description provided" }}
+
+**Schedule Information:**
+- Start Date: {{ epic.start_date.strftime('%Y-%m-%d') if epic.start_date else "Not set" }}
+- Due Date: {{ epic.due_date.strftime('%Y-%m-%d') if epic.due_date else "Not set" }}
+
+{% if epic.last_epic_update %}
+**Latest Epic Update:**
+- Updated: {{ epic.last_epic_update.updated.strftime('%Y-%m-%d %H:%M:%S UTC') if epic.last_epic_update.updated else "Unknown" }}
+- Status: {{ epic.last_epic_update.status.value }}
+- Content: 
+{{ epic.last_epic_update.content | indent(2, true) }}
+
+{% if evaluations and epic.key in evaluations %}
+**AI Evaluation Results:**
+- Overall Score: {{ evaluations[epic.key].average_score }}/5
+- Epic Status Clarity: {{ evaluations[epic.key].epic_status_clarity.score }}/5 - {{ evaluations[epic.key].epic_status_clarity.explanation }}
+- Deliverables Defined: {{ evaluations[epic.key].deliverables_defined.score }}/5 - {{ evaluations[epic.key].deliverables_defined.explanation }}
+- Risk Identification And Mitigation: {{ evaluations[epic.key].risk_identification_and_mitigation.score }}/5 - {{ evaluations[epic.key].risk_identification_and_mitigation.explanation }}
+- Status Enum Justification: {{ evaluations[epic.key].status_enum_justification.score }}/5 - {{ evaluations[epic.key].status_enum_justification.explanation }}
+- Delivery Confidence: {{ evaluations[epic.key].delivery_confidence.score }}/5 - {{ evaluations[epic.key].delivery_confidence.explanation }}
+{% else %}
+**AI Evaluation:** Not available for this epic.
+{% endif %}
+{% else %}
+**Latest Epic Update:** No update available.
+{% endif %}
+
+---
+
+{% endfor %}
+
+## TRACKING PROBLEMS
+{% if problems %}
+{% for problem in problems %}
+### Problem {{ loop.index }}: {{ problem.problem_type.value }}
+**Issue:** {{ problem.issue.key }} - {{ problem.issue.summary }}
+**Project:** {{ problem.issue.project_key }}
+**Status:** {{ problem.issue.status }}
+**Description:** {{ problem.description }}
+**Issue Details:** {{ problem.issue.description or "No description provided" }}
+
+{% endfor %}
+{% else %}
+No tracking problems found.
+{% endif %}
+
+---
+
+## STORIES DUE IN NEXT TWO WEEKS
+{% set two_weeks_from_now = (today + timedelta(days=14)) %}
+{% set upcoming_stories = [] %}
+{% for story in stories %}
+{% if story.due_date and story.due_date <= two_weeks_from_now %}
+{% set _ = upcoming_stories.append(story) %}
+{% endif %}
+{% endfor %}
+
+{% if upcoming_stories %}
+{% for story in upcoming_stories %}
+### Story: {{ story.key }} - {{ story.summary }}
+**Project:** {{ story.project_key }}
+**Status:** {{ story.status }}
+**Due Date:** {{ story.due_date.strftime('%Y-%m-%d') }}
+**Days Until Due:** {{ (story.due_date - today).days }} days
+**Start Date:** {{ story.start_date.strftime('%Y-%m-%d') if story.start_date else "Not set" }}
+**Description:** {{ story.description or "No description provided" }}
+
+{% endfor %}
+{% else %}
+No stories due in the next two weeks.
+{% endif %}
+
+---
+
+## SUMMARY STATISTICS
+**Total Epics:** {{ epics | length }}
+**Total Stories:** {{ stories | length }}
+**Total Problems:** {{ problems | length }}
+**Stories Due Soon:** {{ upcoming_stories | length }}
+
+**Epic Status Breakdown:**
+{% set epic_statuses = {} %}
+{% for epic in epics %}
+{% set status = epic.status %}
+{% if status in epic_statuses %}
+{% set _ = epic_statuses.update({status: epic_statuses[status] + 1}) %}
+{% else %}
+{% set _ = epic_statuses.update({status: 1}) %}
+{% endif %}
+{% endfor %}
+{% for status, count in epic_statuses.items() %}
+- {{ status }}: {{ count }}
+{% endfor %}
+
+**Story Status Breakdown:**
+{% set story_statuses = {} %}
+{% for story in stories %}
+{% set status = story.status %}
+{% if status in story_statuses %}
+{% set _ = story_statuses.update({status: story_statuses[status] + 1}) %}
+{% else %}
+{% set _ = story_statuses.update({status: 1}) %}
+{% endif %}
+{% endfor %}
+{% for status, count in story_statuses.items() %}
+- {{ status }}: {{ count }}
+{% endfor %}
+
+**Problem Type Breakdown:**
+{% set problem_types = {} %}
+{% for problem in problems %}
+{% set ptype = problem.problem_type.value %}
+{% if ptype in problem_types %}
+{% set _ = problem_types.update({ptype: problem_types[ptype] + 1}) %}
+{% else %}
+{% set _ = problem_types.update({ptype: 1}) %}
+{% endif %}
+{% endfor %}
+{% for ptype, count in problem_types.items() %}
+- {{ ptype }}: {{ count }}
+{% endfor %}
+
+---
+
+## VULNERABILITY ANALYSIS
+{% if vulnerability_stats %}
+**Vulnerability Summary:**
+- Total Vulnerabilities: {{ vulnerability_stats.vulnerabilities | length }}
+- Open Vulnerabilities: {{ vulnerability_stats.open_vulnerabilities }}
+- Past Due Vulnerabilities: {{ vulnerability_stats.vulnerabilities_past_due_date }}
+
+{% if vulnerability_stats.vulnerabilities %}
+### All Vulnerabilities
+{% for vulnerability in vulnerability_stats.vulnerabilities %}
+#### Vulnerability: {{ vulnerability.key }} - {{ vulnerability.summary }}
+**Project:** {{ vulnerability.project_key }}
+**Status:** {{ vulnerability.status }}
+**Due Date:** {{ vulnerability.due_date.strftime('%Y-%m-%d') if vulnerability.due_date else "Not set" }}
+{% if vulnerability.due_date and vulnerability.due_date < today %}
+**⚠️ OVERDUE:** {{ (today - vulnerability.due_date).days }} days past due
+{% elif vulnerability.due_date %}
+**Days Until Due:** {{ (vulnerability.due_date - today).days }} days
+{% endif %}
+**Description:** {{ vulnerability.description or "No description provided" }}
+
+{% endfor %}
+
+**Vulnerability Status Breakdown:**
+{% set vuln_statuses = {} %}
+{% for vuln in vulnerability_stats.vulnerabilities %}
+{% set status = vuln.status %}
+{% if status in vuln_statuses %}
+{% set _ = vuln_statuses.update({status: vuln_statuses[status] + 1}) %}
+{% else %}
+{% set _ = vuln_statuses.update({status: 1}) %}
+{% endif %}
+{% endfor %}
+{% for status, count in vuln_statuses.items() %}
+- {{ status }}: {{ count }}
+{% endfor %}
+
+{% else %}
+No vulnerabilities found in the team's projects.
+{% endif %}
+{% else %}
+No vulnerability analysis performed.
+{% endif %} 

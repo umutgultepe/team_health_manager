@@ -260,6 +260,10 @@ class JIRAClient:
             ARNStats object containing the statistics
         """
         # Get all ARN issues for the components and time range
+        if len(components) == 0:
+            return ARNStats(
+                total_arns=0
+            )
         arns = self.list_arns(components, start_time, end_time)
         
         # Calculate statistics

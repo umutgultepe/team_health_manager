@@ -1,9 +1,10 @@
 from typing import List
-from datetime import date
+from datetime import date, timedelta
 import json
+from jinja2 import Environment, FileSystemLoader
 from .clients.jira import JIRAClient
 from .clients.ai import AIClient
-from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats, EpicStatusEvaluation, Evaluation, VulnerabilityStats, Vulnerability
+from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats, EpicStatusEvaluation, Evaluation, Vulnerability, VulnerabilityStats
 
 
 class ExecutionAnalyzer:
@@ -29,6 +30,7 @@ class ExecutionAnalyzer:
         """
         problems = []
         all_stories = []
+        evaluations = {}
         for epic in epics:
             problems.extend(self._analyze_status(epic))
             if epic.get_status() != IssueStatus.IN_PROGRESS:
@@ -52,7 +54,17 @@ class ExecutionAnalyzer:
                     description=f"Epic {epic.key} is in progress but has no recent update (older than 7 days)",
                     issue=epic
                 ))
-        return ExecutionReport(epics=epics, problems=problems, stories=all_stories)
+            else:
+                epic_status_evaluation = self.score_epic_update(epic)
+                evaluations[epic.key] = epic_status_evaluation
+                if epic_status_evaluation.average_score <= 3.5:
+                    problems.append(TrackingProblem(
+                        problem_type=ProblemType.LOW_EPIC_UPDATE_SCORE,
+                        description=f"Epic {epic.key} has a low average score ({epic_status_evaluation.average_score})",
+                        issue=epic
+                    ))
+        
+        return ExecutionReport(epics=epics, problems=problems, stories=all_stories, evaluations=evaluations)
 
         
 
@@ -71,7 +83,8 @@ class ExecutionAnalyzer:
 
         return VulnerabilityStats(
             open_vulnerabilities=open_vulnerabilities,
-            vulnerabilities_past_due_date=past_due_date
+            vulnerabilities_past_due_date=past_due_date,
+            vulnerabilities=vulnerabilities
         )
 
     def build_statistics(self, epics: List[Epic]) -> ExecutionStats:
@@ -178,7 +191,7 @@ class ExecutionAnalyzer:
         
         # Load the evaluation prompt template
         try:
-            with open('src/health/config/evaluation.txt', 'r') as f:
+            with open('src/health/config/epic_evaluation.txt', 'r') as f:
                 prompt_template = f.read()
         except FileNotFoundError:
             raise FileNotFoundError("Evaluation prompt template not found at src/health/config/evaluation.txt")
@@ -186,7 +199,6 @@ class ExecutionAnalyzer:
         # Fill in the template variables
         prompt = prompt_template.replace('{{status}}', epic.last_epic_update.status.value)
         prompt = prompt.replace('{{update}}', epic.last_epic_update.content)
-        print(prompt)
         
         # Make AI API call
         try:
@@ -196,7 +208,6 @@ class ExecutionAnalyzer:
         
         # Parse the JSON response
         try:
-            print(response)
             # Extract JSON from response (in case there's extra text)
             json_start = response.find('{')
             json_end = response.rfind('}') + 1
@@ -217,16 +228,11 @@ class ExecutionAnalyzer:
                 explanation=evaluation_data["Deliverables Defined"]["explanation"]
             )
             
-            risk_identification = Evaluation(
-                score=evaluation_data["Risk Identification"]["score"],
-                explanation=evaluation_data["Risk Identification"]["explanation"]
+            risk_identification_and_mitigation = Evaluation(
+                score=evaluation_data["Risk Identification And Mitigation"]["score"],
+                explanation=evaluation_data["Risk Identification And Mitigation"]["explanation"]
             )
-            
-            mitigation_measures = Evaluation(
-                score=evaluation_data["Mitigation Measures"]["score"],
-                explanation=evaluation_data["Mitigation Measures"]["explanation"]
-            )
-            
+             
             status_enum_justification = Evaluation(
                 score=evaluation_data["Status Enum Justification"]["score"],
                 explanation=evaluation_data["Status Enum Justification"]["explanation"]
@@ -240,10 +246,10 @@ class ExecutionAnalyzer:
             average_score = evaluation_data["Average Score"]
             
             return EpicStatusEvaluation(
+                epic_key=epic.key,
                 epic_status_clarity=epic_status_clarity,
                 deliverables_defined=deliverables_defined,
-                risk_identification=risk_identification,
-                mitigation_measures=mitigation_measures,
+                risk_identification_and_mitigation=risk_identification_and_mitigation,
                 status_enum_justification=status_enum_justification,
                 delivery_confidence=delivery_confidence,
                 average_score=average_score
@@ -251,3 +257,72 @@ class ExecutionAnalyzer:
             
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             raise Exception(f"Failed to parse AI response: {str(e)}. Response: {response}")
+
+    def render_report_context(self, report: ExecutionReport, vulnerability_stats: VulnerabilityStats = None) -> str:
+        """Render an ExecutionReport using a Jinja2 template.
+        
+        Args:
+            report: ExecutionReport object containing epics, problems, and stories
+            vulnerability_stats: Optional VulnerabilityStats object containing vulnerability data
+            
+        Returns:
+            str: Rendered template as a string
+            
+        Raises:
+            Exception: If template loading or rendering fails
+        """
+        try:
+            # Set up Jinja2 environment
+            env = Environment(loader=FileSystemLoader('src/health/config'))
+            template = env.get_template('execution_report_template.jinja2')
+            
+            # Prepare context data
+            context = {
+                'epics': report.epics,
+                'problems': report.problems,
+                'stories': report.stories,
+                'evaluations': report.evaluations,
+                'vulnerability_stats': vulnerability_stats,
+                'today': date.today(),
+                'timedelta': timedelta
+            }
+            
+            # Render the template
+            rendered = template.render(**context)
+            return rendered
+            
+        except Exception as e:
+            raise Exception(f"Failed to render report template: {str(e)}")
+
+    def render_execution_report(self, report_context: str) -> str:
+        """Generate an execution report using AI from the provided context.
+        
+        Args:
+            report_context: String containing the execution report context data
+            
+        Returns:
+            str: AI-generated execution report
+        """
+        # Set up Jinja2 environment for the prompt template
+        env = Environment(loader=FileSystemLoader('src/health/config'))
+        template = env.get_template('report_prompt.txt')
+        
+        # Import credentials to get template variables
+        from .config.credentials import JIRA_DOMAIN, get_health_sheet_id, get_execution_sheet_id
+        
+        # Prepare template variables from credentials
+        template_vars = {
+            'JIRA_DOMAIN': f"https://{JIRA_DOMAIN}",
+            'HEALTH_SHEET_ID': get_health_sheet_id(),
+            'EXECUTION_SHEET_ID': get_execution_sheet_id()
+        }
+        
+        # Render the prompt template with variables
+        rendered_prompt = template.render(**template_vars)
+        
+        # Prepare the full prompt by appending the context to the rendered prompt
+        full_prompt = f"{rendered_prompt}\n\nContext Document:\n{report_context}"
+        
+        # Make AI API call
+        response = self.ai_client.call_api(full_prompt)
+        return response

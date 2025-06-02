@@ -1,0 +1,75 @@
+You are an AI assistant generating a weekly execution report in **Markdown format** based on a structured template and a provided context document.
+
+## CRITICAL INSTRUCTIONS
+
+- ONLY fill in the content within angle-bracket sections such as `<epics>...</epics>` or `<problems>...</problems>`.
+- DO NOT ADD ANY NEW HEADERS or MODIFY existing structure or Markdown outside the bracketed sections.
+- When generating content:
+  - Use the prompts within each angle-bracket section for instructions.
+  - **REMOVE the angle-bracket tags and any instruction text inside them.**
+  - Leave only the generated content that replaces those tags.
+  - DO NOT leave any trace of prompts or tags like `<epics>` or "List each epic...".
+- Include ALL the original content that is outside the bracketed sections.
+- Hyperlink all JIRA ticket keys (format: `ABC-123`) to the domain `{{JIRA_DOMAIN}}`, like this: `[ABC-123]({{JIRA_DOMAIN}}/browse/ABC-123)`
+- Output MUST be **valid Markdown**, with correct bullet and sub-bullet formatting.
+- Final output should be clean, professional, and well-structured.
+
+Now generate the following report:
+
+---
+
+## <date>Insert the current date here</date>
+
+### Execution
+
+#### Quarter Progress
+
+**AI Summary**  
+
+<epics>
+Considering the epic updates & due dates, propose topics that should be discussed. These should include:
+
+- Epics without updates, or where the updates are of low average score.   
+- Epics which have big risks or no mitigation plans for those risks  
+- Epics where the delivery confidence is low
+
+If there is no epic update or update score is below 4, the epic must be listed for discussion. 
+
+List each epic warranting a discussion in a separate bullet point. Provide an explanation for why it needs discussion.
+</epics>
+
+**Team Lead Input**
+
+- Escalations/questions for discussion  
+- Customer escalations
+
+#### Vulnerabilities
+
+<vulnerabilities>
+For each of the following category, list the vulnerabilities with one more indentation (i.e. sub-bullet) under each category. This part shold not include Stories, only Vulnerabilities. Do not add details about vulnerabilities, just the issue key hyperlinked to JIRA. 
+- Open Vulnerabilities  
+- Vulnerabilities with missed deadlines  
+- Vulnerabilities with approaching deadlines (next two weeks)
+
+</vulnerabilities>
+
+### Operation
+
+Stats available at: [Team Health Sheet](https://docs.google.com/spreadsheets/d/{{HEALTH_SHEET_ID}})
+
+**Team Lead Input**
+
+- Links to ops review/handoff document  
+- Summary of completed improvements (can be summarized using AI)  
+- Summary of planned improvements with tickets
+
+### Process Adherence
+
+Stats available at: [Execution Health Sheet](https://docs.google.com/spreadsheets/d/{{EXECUTION_SHEET_ID}})
+<problems>  
+- Provide a breakdown of the problems found with counts per type and a few examples. 
+- Do not list add any other statistics other than problems. 
+- Do not list every single problem.
+</problems>
+
+<divider>Insert a horizontal line to indicate the end of the doc.</divider>

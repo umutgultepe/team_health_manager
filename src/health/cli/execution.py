@@ -133,6 +133,138 @@ def evaluate_epic_update(epic_key: str):
 
 @cli.command()
 @click.argument('team_key')
+@click.argument('label')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+def render_report_context(team_key: str, label: str, team_config: str):
+    """Render a detailed execution report context for AI summarization.
+    
+    This command:
+    1. Looks up the team and gets their project keys
+    2. Fetches all epics with the specified label from each project
+    3. Analyzes the epics for execution problems and metrics
+    4. Renders a comprehensive report using Jinja2 template
+    5. Prints the rendered context for further processing
+    
+    Args:
+        team_key: Key of the team to analyze (e.g., 'app_foundations')
+        label: Label to filter epics by (e.g., 'Q4-2024')
+        team_config: Path to team configuration file
+    """
+    # Load team configuration
+    team_manager = TeamManager(team_config)
+    team = team_manager.by_key(team_key)
+    
+    if not team:
+        click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
+        sys.exit(1)
+    
+    # Check if team has project keys
+    if not hasattr(team, 'project_keys') or not team.project_keys:
+        click.echo(f"Error: Team '{team.name}' has no project keys configured", err=True)
+        sys.exit(1)
+    
+    click.echo(f"🔍 Generating report context for team: {team.name}")
+    click.echo(f"📋 Label: {label}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
+    
+    # Initialize JIRA client
+    jira_client = JIRAClient()
+    
+    # Collect epics from all project keys
+    all_epics: List[Epic] = []
+    
+    for project_key in team.project_keys:
+        click.echo(f"  ↳ Fetching epics from project {project_key}...")
+        epics = jira_client.get_epics_by_label(project_key, label)
+        all_epics.extend(epics)
+        click.echo(f"    Found {len(epics)} epics in {project_key}")
+    
+    if not all_epics:
+        click.echo(f"\n❌ No epics found with label '{label}' in any of the team's projects")
+        return
+    
+    click.echo(f"\n✅ Total epics collected: {len(all_epics)}")
+    
+    # Initialize ExecutionAnalyzer and analyze epics
+    click.echo("🔬 Analyzing epics and generating report...")
+    analyzer = ExecutionAnalyzer(jira_client)
+    report = analyzer.analyze_epics(all_epics)
+    
+    # Collect vulnerabilities from all project keys
+    click.echo("🔒 Fetching vulnerabilities...")
+    all_vulnerabilities = []
+    
+    for project_key in team.project_keys:
+        vulnerabilities = jira_client.get_vulnerabilities_for_project(project_key)
+        all_vulnerabilities.extend(vulnerabilities)
+        click.echo(f"    Found {len(vulnerabilities)} vulnerabilities in {project_key}")
+    
+    # Analyze vulnerabilities
+    vulnerability_stats = None
+    if all_vulnerabilities:
+        vulnerability_stats = analyzer.build_vulnerability_stats(all_vulnerabilities)
+        click.echo(f"✅ Total vulnerabilities found: {len(all_vulnerabilities)}")
+    else:
+        click.echo("ℹ️  No vulnerabilities found in any project")
+    
+    # Render the report context
+    try:
+        rendered_context = analyzer.render_report_context(report, vulnerability_stats)
+        click.echo("\n📄 Rendered Report Context:")
+        click.echo("=" * 80)
+        click.echo(rendered_context)
+        click.echo("=" * 80)
+        
+    except Exception as e:
+        click.echo(f"❌ Error rendering report: {e}", err=True)
+        sys.exit(1)
+
+@cli.command()
+@click.argument('context_file_path')
+def render_from_context(context_file_path: str):
+    """Generate an execution report from a context file using AI.
+    
+    This command:
+    1. Reads the execution report context from the specified file
+    2. Uses AI to generate a formatted execution report
+    3. Prints the rendered report
+    
+    Args:
+        context_file_path: Path to the file containing the execution report context
+    """
+    click.echo(f"📄 Reading context from: {context_file_path}")
+    
+    # Read the context file
+    try:
+        with open(context_file_path, 'r') as f:
+            context_content = f.read()
+        
+        if not context_content.strip():
+            click.echo(f"❌ Error: Context file is empty", err=True)
+            sys.exit(1)
+            
+        click.echo(f"✅ Successfully read {len(context_content)} characters from context file")
+        
+    except FileNotFoundError:
+        click.echo(f"❌ Error: Context file not found: {context_file_path}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"❌ Error reading context file: {e}", err=True)
+        sys.exit(1)
+    
+    # Initialize ExecutionAnalyzer (no JIRA client needed for this operation)
+    jira_client = JIRAClient()  # Still needed for the analyzer constructor
+    analyzer = ExecutionAnalyzer(jira_client)
+    
+    # Generate the execution report
+    click.echo("🤖 Generating execution report using AI...")
+    rendered_report = analyzer.render_execution_report(context_content)
+    
+    click.echo(rendered_report)
+        
+
+@cli.command()
+@click.argument('team_key')
 @click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
 @click.option('--stats-config', default='src/health/config/stats.yaml', help='Path to stats configuration file')
 def write_execution_headers(team_key: str, team_config: str, stats_config: str):
