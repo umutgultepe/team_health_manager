@@ -85,51 +85,42 @@ def evaluate_epic_update(epic_key: str):
     jira_client = JIRAClient()
     analyzer = ExecutionAnalyzer(jira_client)
     
-    try:
-        # Get the epic
-        click.echo(f"📋 Fetching epic from JIRA...")
-        epic = jira_client.get_epic(epic_key)
-        
-        # Evaluate the epic update
-        click.echo(f"🤖 Evaluating epic update using AI...")
-        evaluation = analyzer.score_epic_update(epic)
-        
-        # Display results
-        click.echo(f"\n🎯 Epic Update Evaluation Results")
-        click.echo("=" * 60)
-        click.echo(f"Epic: {epic.key} - {epic.summary}")
-        
-        if epic.last_epic_update:
-            click.echo(f"Update Date: {epic.last_epic_update.updated.strftime('%Y-%m-%d %H:%M:%S UTC') if epic.last_epic_update.updated else 'Unknown'}")
-            click.echo(f"Update Status: {epic.last_epic_update.status.value}")
-        
-        click.echo(f"\n⭐ Overall Average Score: {evaluation.average_score:.1f}/5")
-        click.echo("\n📊 Detailed Scoring:")
-        click.echo("-" * 40)
-        
-        # Display each evaluation criterion
-        criteria = [
-            ("Epic Status Clarity", evaluation.epic_status_clarity),
-            ("Deliverables Defined", evaluation.deliverables_defined),
-            ("Risk Identification", evaluation.risk_identification),
-            ("Mitigation Measures", evaluation.mitigation_measures),
-            ("Status Enum Justification", evaluation.status_enum_justification),
-            ("Delivery Confidence", evaluation.delivery_confidence)
-        ]
-        
-        for criterion_name, evaluation_obj in criteria:
-            score_bar = "★" * evaluation_obj.score + "☆" * (5 - evaluation_obj.score)
-            click.echo(f"\n{criterion_name}: {evaluation_obj.score}/5 {score_bar}")
-            click.echo(f"   💬 {evaluation_obj.explanation}")
-        
-        click.echo("\n" + "=" * 60)
-        
-    except ValueError as e:
-        click.echo(f"❌ Validation Error: {e}", err=True)
-        sys.exit(1)
-    except Exception as e:
-        click.echo(f"❌ Error: {e}", err=True)
-        sys.exit(1)
+    # Get the epic
+    click.echo(f"📋 Fetching epic from JIRA...")
+    epic = jira_client.get_epic(epic_key)
+    
+    # Evaluate the epic update
+    click.echo(f"🤖 Evaluating epic update using AI...")
+    evaluation = analyzer.score_epic_update(epic)
+    
+    # Display results
+    click.echo(f"\n🎯 Epic Update Evaluation Results")
+    click.echo("=" * 60)
+    click.echo(f"Epic: {epic.key} - {epic.summary}")
+    
+    if epic.last_epic_update:
+        click.echo(f"Update Date: {epic.last_epic_update.updated.strftime('%Y-%m-%d %H:%M:%S UTC') if epic.last_epic_update.updated else 'Unknown'}")
+        click.echo(f"Update Status: {epic.last_epic_update.status.value}")
+    
+    click.echo(f"\n⭐ Overall Average Score: {evaluation.average_score:.1f}/5")
+    click.echo("\n📊 Detailed Scoring:")
+    click.echo("-" * 40)
+    
+    # Display each evaluation criterion
+    criteria = [
+        ("Epic Status Clarity", evaluation.epic_status_clarity),
+        ("Deliverables Defined", evaluation.deliverables_defined),
+        ("Risk Identification And Mitigation", evaluation.risk_identification_and_mitigation),
+        ("Status Enum Justification", evaluation.status_enum_justification),
+        ("Delivery Confidence", evaluation.delivery_confidence)
+    ]
+    
+    for criterion_name, evaluation_obj in criteria:
+        score_bar = "★" * evaluation_obj.score + "☆" * (5 - evaluation_obj.score)
+        click.echo(f"\n{criterion_name}: {evaluation_obj.score}/5 {score_bar}")
+        click.echo(f"   💬 {evaluation_obj.explanation}")
+    
+    click.echo("\n" + "=" * 60)
 
 @cli.command()
 @click.argument('team_key')
