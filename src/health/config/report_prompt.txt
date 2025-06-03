@@ -33,9 +33,10 @@ Considering the epic updates & due dates, propose topics that should be discusse
 - Epics which have big risks or no mitigation plans for those risks  
 - Epics where the delivery confidence is low
 
-If there is no epic update or update score is below 4, the epic must be listed for discussion. 
-
-List each epic warranting a discussion in a separate bullet point. Provide an explanation for why it needs discussion.
+Requirements:
+- Only consider epics which are in progress (shouldn't be TODO)
+- If there is no epic update or update score is below 4, the epic must be listed for discussion. 
+- List each epic warranting a discussion in a separate bullet point. Provide an explanation for why it needs discussion.
 </epics>
 
 **Team Lead Input**

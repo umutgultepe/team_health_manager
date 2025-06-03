@@ -6,7 +6,7 @@ Scoring scale:
 Evaluation Criteria:
 1. Epic Status Clarity – Does the update clearly indicate whether the epic is on track for its due date?
 2. Deliverables Defined – Are the deliverables for the current week clearly outlined?
-3. Risk Identification Mitigation – Are the potential risk factors that could cause delays identified and described? If there are risks, are there specific mitigation steps?
+3. Risk Identification And Mitigation – Are the potential risk factors that could cause delays identified and described? If there are risks, are there specific mitigation steps?
 4. Status Enum Justification – Does the provided status enum (On Track / At Risk / Off Track) accurately reflect the project's real state?
 5. Delivery Confidence – Does the update give a clear picture of the team's confidence in delivering on-time, on-budget, and on-spec?
 
@@ -21,7 +21,7 @@ Return the result in this exact JSON format:
     "score": 5,
     "explanation": "..."
   },
-  "Risk Identification Mitigation": {
+  "Risk Identification And Mitigation": {
     "score": 3,
     "explanation": "..."
   },
