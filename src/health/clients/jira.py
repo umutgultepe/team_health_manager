@@ -286,6 +286,11 @@ class JIRAClient:
         due_date = self._parse_due_date(issue.fields.duedate)
         start_date = self._parse_start_date(getattr(issue.fields, 'customfield_10014', None))
         
+        # Extract assignee information
+        assignee = "Unassigned"
+        if hasattr(issue.fields, 'assignee') and issue.fields.assignee:
+            assignee = issue.fields.assignee.displayName
+        
         common_args = {
             'project_key': project_key or issue.key.split('-')[0],
             'key': issue.key,
@@ -293,7 +298,8 @@ class JIRAClient:
             'description': issue.fields.description,
             'status': issue.fields.status.name,
             'due_date': due_date,
-            'start_date': start_date
+            'start_date': start_date,
+            'assignee': assignee
         }
         
         if getattr(issue.fields.issuetype, 'name', None) == 'Epic':
