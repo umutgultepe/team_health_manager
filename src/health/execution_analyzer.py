@@ -79,7 +79,9 @@ class ExecutionAnalyzer:
         """
         open_vulnerabilities = sum(1 for vulnerability in vulnerabilities 
                                  if vulnerability.get_status() in [IssueStatus.TODO, IssueStatus.IN_PROGRESS])
-        past_due_date = sum(1 for vulnerability in vulnerabilities if vulnerability.due_date and vulnerability.due_date < date.today())
+        past_due_date = sum(1 for vulnerability in vulnerabilities 
+                           if vulnerability.get_status() in [IssueStatus.TODO, IssueStatus.IN_PROGRESS] 
+                           and vulnerability.due_date and vulnerability.due_date < date.today())
 
         return VulnerabilityStats(
             open_vulnerabilities=open_vulnerabilities,
