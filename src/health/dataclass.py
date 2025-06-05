@@ -214,6 +214,7 @@ class Epic(Issue):
     due_date: Optional[datetime.date] = None
     start_date: Optional[datetime.date] = None
     last_epic_update: Optional[EpicUpdate] = None
+    assignee: str = "Unassigned"
 
 @dataclass
 class Vulnerability(Issue):
@@ -225,6 +226,7 @@ class Story(Issue):
     """Represents a JIRA story."""
     due_date: Optional[datetime.date] = None
     start_date: Optional[datetime.date] = None
+    assignee: str = "Unassigned"
 
 @dataclass
 class ARNStats:

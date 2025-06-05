@@ -47,3 +47,6 @@ src/health/config/team.yaml
 src/health/config/token.json
 # Keep templates
 !src/health/config/*.template
+
+# Documentation
+docs/

@@ -3,16 +3,15 @@ import sys
 from typing import List
 from ..dataclass import IssueStatus
 from ..clients.jira import JIRAClient
-from ..clients.drive import DriveClient
 from ..execution_analyzer import ExecutionAnalyzer
 from ..team_manager import TeamManager
-from ..dataclass import Epic, Team
+from ..dataclass import Epic
 from .base import cli
 from ..config.credentials import get_execution_sheet_id
 from ..clients.sheets import SheetsClient
 from ..statistics_generator import ExecutionStatistics
 from ..stats_manager import StatsManager
-from ..clients.docs import DocsClient
+from ..renderers.cli.jira_execution_cli_renderer import JiraExecutionCliRenderer
 
 def get_stats_manager(label: str, team_config: str = 'src/health/config/team.yaml', stats_config: str = 'src/health/config/execution_stats.yaml'):
     sheets_client = SheetsClient(get_execution_sheet_id())
@@ -20,53 +19,6 @@ def get_stats_manager(label: str, team_config: str = 'src/health/config/team.yam
     statistics_generator = ExecutionStatistics(jira_client, label)
     return StatsManager(sheets_client, statistics_generator, team_config)
 
-
-def print_execution_report(report):
-    """Print the execution report in a formatted way."""
-    click.echo(f"\n📊 Execution Report")
-    click.echo("=" * 50)
-    
-    # Print epic summary
-    epic_count = len(report.epics)
-    click.echo(f"📋 Total Epics: {epic_count}")
-    
-    if epic_count > 0:
-        # Group epics by status
-        status_counts = {}
-        for epic in report.epics:
-            status = epic.get_status().value if hasattr(epic, 'get_status') else epic.status
-            status_counts[status] = status_counts.get(status, 0) + 1
-        
-        click.echo("\n📈 Epic Status Breakdown:")
-        for status, count in status_counts.items():
-            percentage = (count / epic_count) * 100
-            click.echo(f"  {status}: {count} ({percentage:.1f}%)")
-    
-    # Print story summary
-    story_count = len(report.stories) if hasattr(report, 'stories') and report.stories else 0
-    click.echo(f"\n📝 Total Stories: {story_count}")
-    
-    # Print problems summary
-    problem_count = len(report.problems) if hasattr(report, 'problems') and report.problems else 0
-    click.echo(f"\n⚠️  Total Problems Found: {problem_count}")
-    
-    if problem_count > 0:
-        # Group problems by type
-        problem_types = {}
-        for problem in report.problems:
-            problem_type = problem.problem_type.value if hasattr(problem.problem_type, 'value') else str(problem.problem_type)
-            problem_types[problem_type] = problem_types.get(problem_type, 0) + 1
-        
-        click.echo("\n🔍 Problem Breakdown:")
-        for problem_type, count in problem_types.items():
-            click.echo(f"  {problem_type}: {count}")
-        
-        # Show first few problems as examples
-        click.echo("\n📋 Problems:")
-        for i, problem in enumerate(report.problems):  # Show first 5 problems
-            click.echo(f"  {i+1}. {problem.description}")
-    
-    click.echo("\n" + "=" * 50)
 
 @cli.command()
 @click.argument('epic_key')
@@ -87,42 +39,51 @@ def evaluate_epic_update(epic_key: str):
     jira_client = JIRAClient()
     analyzer = ExecutionAnalyzer(jira_client)
     
-    # Get the epic
-    click.echo(f"📋 Fetching epic from JIRA...")
-    epic = jira_client.get_epic(epic_key)
-    
-    # Evaluate the epic update
-    click.echo(f"🤖 Evaluating epic update using AI...")
-    evaluation = analyzer.score_epic_update(epic)
-    
-    # Display results
-    click.echo(f"\n🎯 Epic Update Evaluation Results")
-    click.echo("=" * 60)
-    click.echo(f"Epic: {epic.key} - {epic.summary}")
-    
-    if epic.last_epic_update:
-        click.echo(f"Update Date: {epic.last_epic_update.updated.strftime('%Y-%m-%d %H:%M:%S UTC') if epic.last_epic_update.updated else 'Unknown'}")
-        click.echo(f"Update Status: {epic.last_epic_update.status.value}")
-    
-    click.echo(f"\n⭐ Overall Average Score: {evaluation.average_score:.1f}/5")
-    click.echo("\n📊 Detailed Scoring:")
-    click.echo("-" * 40)
-    
-    # Display each evaluation criterion
-    criteria = [
-        ("Epic Status Clarity", evaluation.epic_status_clarity),
-        ("Deliverables Defined", evaluation.deliverables_defined),
-        ("Risk Identification And Mitigation", evaluation.risk_identification_and_mitigation),
-        ("Status Enum Justification", evaluation.status_enum_justification),
-        ("Delivery Confidence", evaluation.delivery_confidence)
-    ]
-    
-    for criterion_name, evaluation_obj in criteria:
-        score_bar = "★" * evaluation_obj.score + "☆" * (5 - evaluation_obj.score)
-        click.echo(f"\n{criterion_name}: {evaluation_obj.score}/5 {score_bar}")
-        click.echo(f"   💬 {evaluation_obj.explanation}")
-    
-    click.echo("\n" + "=" * 60)
+    try:
+        # Get the epic
+        click.echo(f"📋 Fetching epic from JIRA...")
+        epic = jira_client.get_epic(epic_key)
+        
+        # Evaluate the epic update
+        click.echo(f"🤖 Evaluating epic update using AI...")
+        evaluation = analyzer.score_epic_update(epic)
+        
+        # Display results
+        click.echo(f"\n🎯 Epic Update Evaluation Results")
+        click.echo("=" * 60)
+        click.echo(f"Epic: {epic.key} - {epic.summary}")
+        
+        if epic.last_epic_update:
+            click.echo(f"Update Date: {epic.last_epic_update.updated.strftime('%Y-%m-%d %H:%M:%S UTC') if epic.last_epic_update.updated else 'Unknown'}")
+            click.echo(f"Update Status: {epic.last_epic_update.status.value}")
+        
+        click.echo(f"\n⭐ Overall Average Score: {evaluation.average_score:.1f}/5")
+        click.echo("\n📊 Detailed Scoring:")
+        click.echo("-" * 40)
+        
+        # Display each evaluation criterion
+        criteria = [
+            ("Epic Status Clarity", evaluation.epic_status_clarity),
+            ("Deliverables Defined", evaluation.deliverables_defined),
+            ("Risk Identification", evaluation.risk_identification),
+            ("Mitigation Measures", evaluation.mitigation_measures),
+            ("Status Enum Justification", evaluation.status_enum_justification),
+            ("Delivery Confidence", evaluation.delivery_confidence)
+        ]
+        
+        for criterion_name, evaluation_obj in criteria:
+            score_bar = "★" * evaluation_obj.score + "☆" * (5 - evaluation_obj.score)
+            click.echo(f"\n{criterion_name}: {evaluation_obj.score}/5 {score_bar}")
+            click.echo(f"   💬 {evaluation_obj.explanation}")
+        
+        click.echo("\n" + "=" * 60)
+        
+    except ValueError as e:
+        click.echo(f"❌ Validation Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"❌ Error: {e}", err=True)
+        sys.exit(1)
 
 @cli.command()
 @click.argument('team_key')
@@ -143,13 +104,66 @@ def render_report_context(team_key: str, label: str, team_config: str):
         label: Label to filter epics by (e.g., 'Q4-2024')
         team_config: Path to team configuration file
     """
+    # Load team configuration
+    team_manager = TeamManager(team_config)
+    team = team_manager.by_key(team_key)
+    
+    if not team:
+        click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
+        sys.exit(1)
+    
+    # Check if team has project keys
+    if not hasattr(team, 'project_keys') or not team.project_keys:
+        click.echo(f"Error: Team '{team.name}' has no project keys configured", err=True)
+        sys.exit(1)
+    
+    click.echo(f"🔍 Generating report context for team: {team.name}")
+    click.echo(f"📋 Label: {label}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
+    
+    # Initialize JIRA client
+    jira_client = JIRAClient()
+    
+    # Collect epics from all project keys
+    all_epics: List[Epic] = []
+    
+    for project_key in team.project_keys:
+        click.echo(f"  ↳ Fetching epics from project {project_key}...")
+        epics = jira_client.get_epics_by_label(project_key, label)
+        all_epics.extend(epics)
+        click.echo(f"    Found {len(epics)} epics in {project_key}")
+    
+    if not all_epics:
+        click.echo(f"\n❌ No epics found with label '{label}' in any of the team's projects")
+        return
+    
+    click.echo(f"\n✅ Total epics collected: {len(all_epics)}")
+    
+    # Initialize ExecutionAnalyzer and analyze epics
+    click.echo("🔬 Analyzing epics and generating report...")
+    analyzer = ExecutionAnalyzer(jira_client)
+    report = analyzer.analyze_epics(all_epics)
+    
+    # Collect vulnerabilities from all project keys
+    click.echo("🔒 Fetching vulnerabilities...")
+    all_vulnerabilities = []
+    
+    for project_key in team.project_keys:
+        vulnerabilities = jira_client.get_vulnerabilities_for_project(project_key)
+        all_vulnerabilities.extend(vulnerabilities)
+        click.echo(f"    Found {len(vulnerabilities)} vulnerabilities in {project_key}")
+    
+    # Analyze vulnerabilities
+    vulnerability_stats = None
+    if all_vulnerabilities:
+        vulnerability_stats = analyzer.build_vulnerability_stats(all_vulnerabilities)
+        click.echo(f"✅ Total vulnerabilities found: {len(all_vulnerabilities)}")
+    else:
+        click.echo("ℹ️  No vulnerabilities found in any project")
+    
+    # Render the report context
     try:
-        # Get stats manager and use its generator to render the context
-        team_manager = TeamManager(team_config)
-        team = team_manager.by_key(team_key)
-        manager = get_stats_manager(label, team_config)
-        rendered_context = manager.generator.render_context(team)
-        
+        rendered_context = analyzer.render_report_context(report, vulnerability_stats)
         click.echo("\n📄 Rendered Report Context:")
         click.echo("=" * 80)
         click.echo(rendered_context)
@@ -242,7 +256,9 @@ def write_execution_stats(team_key: str, label: str, section: str, team_config: 
 @click.argument('team_key')
 @click.argument('label')
 @click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
-def team_execution_report(team_key: str, label: str, team_config: str):
+@click.option('--watch', is_flag=True, help='Enable watch mode with live updates every 60 seconds')
+@click.option('--refresh-interval', default=60, help='Refresh interval in seconds for watch mode (default: 60)')
+def team_execution_report(team_key: str, label: str, team_config: str, watch: bool, refresh_interval: int):
     """Generate an execution report for a team's epics with a specific label.
     
     This command:
@@ -250,30 +266,120 @@ def team_execution_report(team_key: str, label: str, team_config: str):
     2. Fetches all epics with the specified label from each project
     3. Analyzes the epics for execution problems and metrics
     4. Displays a comprehensive report
+    5. With --watch flag, continuously updates the report in real-time
     
     Args:
         team_key: Key of the team to analyze (e.g., 'app_foundations')
         label: Label to filter epics by (e.g., 'Q4-2024')
         team_config: Path to team configuration file
+        watch: Enable continuous monitoring with live updates
+        refresh_interval: How often to refresh in watch mode (seconds)
     """
-    try:
-        # Get team and stats manager
-        team_manager = TeamManager(team_config)
-        team = team_manager.by_key(team_key)
-        if not team:
-            click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
-            sys.exit(1)
-            
-        manager = get_stats_manager(label, team_config)
-        
-        # Get and print the report
-        report = manager.generator.get_report(team)
-        print_execution_report(report)
-        
-    except Exception as e:
-        click.echo(f"❌ Error generating report: {e}", err=True)
+    # Load team configuration
+    team_manager = TeamManager(team_config)
+    team = team_manager.by_key(team_key)
+    
+    if not team:
+        click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
         sys.exit(1)
+    
+    # Check if team has project keys
+    if not hasattr(team, 'project_keys') or not team.project_keys:
+        click.echo(f"Error: Team '{team.name}' has no project keys configured", err=True)
+        sys.exit(1)
+    
+    if watch:
+        _run_watch_mode(team, label, refresh_interval)
+    else:
+        _run_single_report(team, label)
 
+def _run_single_report(team, label: str):
+    """Run a single execution report."""
+    click.echo(f"🔍 Analyzing execution for team: {team.name}")
+    click.echo(f"📋 Label: {label}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
+    
+    # Initialize JIRA client
+    jira_client = JIRAClient()
+    
+    # Collect epics from all project keys
+    all_epics: List[Epic] = []
+    
+    for project_key in team.project_keys:
+        click.echo(f"  ↳ Fetching epics from project {project_key}...")
+        epics = jira_client.get_epics_by_label(project_key, label)
+        all_epics.extend(epics)
+        click.echo(f"    Found {len(epics)} epics in {project_key}")
+    
+    if not all_epics:
+        click.echo(f"\n❌ No epics found with label '{label}' in any of the team's projects")
+        return
+    
+    click.echo(f"\n✅ Total epics collected: {len(all_epics)}")
+    
+    # Initialize ExecutionAnalyzer and analyze epics
+    click.echo("🔬 Analyzing epics for execution problems...")
+    analyzer = ExecutionAnalyzer(jira_client)
+    report = analyzer.analyze_epics(all_epics)
+    
+    # Use the new renderer instead of the old print function
+    renderer = JiraExecutionCliRenderer()
+    renderer.render_report(report)
+
+def _run_watch_mode(team, label: str, refresh_interval: int):
+    """Run continuous watch mode with live updates."""
+    import time
+    import os
+    from datetime import datetime
+    
+    click.echo(f"🔄 Starting Live Watch Mode for team: {team.name}")
+    click.echo(f"📋 Label: {label}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
+    click.echo(f"⏱️  Refresh interval: {refresh_interval} seconds")
+    click.echo(f"💡 Press Ctrl+C to exit watch mode\n")
+    
+    # Initialize JIRA client and renderer
+    jira_client = JIRAClient()
+    analyzer = ExecutionAnalyzer(jira_client)
+    renderer = JiraExecutionCliRenderer()
+    
+    previous_report = None
+    iteration = 0
+    
+    try:
+        while True:
+            iteration += 1
+            
+            # Clear screen for better readability
+            os.system('clear' if os.name == 'posix' else 'cls')
+            
+            # Collect and analyze current data
+            all_epics: List[Epic] = []
+            for project_key in team.project_keys:
+                epics = jira_client.get_epics_by_label(project_key, label)
+                all_epics.extend(epics)
+            
+            if not all_epics:
+                click.echo(f"❌ No epics found with label '{label}' in any of the team's projects")
+                time.sleep(refresh_interval)
+                continue
+            
+            current_report = analyzer.analyze_epics(all_epics)
+            
+            # Use renderer for watch mode display
+            renderer.render_watch_mode(current_report, previous_report, iteration, refresh_interval)
+            
+            previous_report = current_report
+            
+            # Wait for next refresh
+            for remaining in range(refresh_interval, 0, -1):
+                print(f"\r🔄 Next refresh in: {remaining:2d}s (Press Ctrl+C to exit)", end="", flush=True)
+                time.sleep(1)
+            print()  # New line after countdown
+            
+    except KeyboardInterrupt:
+        click.echo(f"\n\n👋 Watch mode stopped. Final iteration: {iteration}")
+        click.echo("📊 Run without --watch flag for a static report.")
 
 @cli.command()
 @click.argument('team_key')
@@ -363,221 +469,81 @@ def epic_updates(team_key: str, label: str, team_config: str):
 @click.argument('team_key')
 @click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
 def list_vulnerabilities(team_key: str, team_config: str):
-    """List all vulnerabilities for a team's projects.
+    """List all vulnerabilities for a team across all their projects.
     
     This command:
     1. Looks up the team and gets their project keys
     2. Fetches all vulnerabilities from each project
-    3. Displays a comprehensive list with status breakdown
+    3. Displays a summary of vulnerabilities found
     
     Args:
         team_key: Key of the team to analyze (e.g., 'app_foundations')
         team_config: Path to team configuration file
     """
-    try:
-        # Get team and stats manager
-        team_manager = TeamManager(team_config)
-        team = team_manager.by_key(team_key)
-        if not team:
-            click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
-            sys.exit(1)
-            
-        manager = get_stats_manager("no_label", team_config)
-        
-        # Get vulnerabilities
-        all_vulnerabilities = manager.generator.get_vulnerabilities(team)
-        
-        if not all_vulnerabilities:
-            click.echo(f"\n✅ No vulnerabilities found in any of the team's projects")
-            return
-            
-        # Print summary
-        click.echo(f"\n📊 Vulnerability Summary")
-        click.echo("=" * 50)
-        click.echo(f"📋 Total Vulnerabilities: {len(all_vulnerabilities)}")
-        
-        # Group by status
-        status_counts = {}
-        for vuln in all_vulnerabilities:
-            status = vuln.get_status().value if hasattr(vuln, 'get_status') else vuln.status
-            status_counts[status] = status_counts.get(status, 0) + 1
-        
-        click.echo(f"\n📈 Status Breakdown:")
-        for status, count in status_counts.items():
-            percentage = (count / len(all_vulnerabilities)) * 100
-            click.echo(f"  {status}: {count} ({percentage:.1f}%)")
-        
-        # Group by project
-        project_counts = {}
-        for vuln in all_vulnerabilities:
-            project_counts[vuln.project_key] = project_counts.get(vuln.project_key, 0) + 1
-        
-        click.echo(f"\n🎯 Project Breakdown:")
-        for project, count in project_counts.items():
-            percentage = (count / len(all_vulnerabilities)) * 100
-            click.echo(f"  {project}: {count} ({percentage:.1f}%)")
-        
-        click.echo("\n" + "=" * 50)
-        
-    except Exception as e:
-        click.echo(f"❌ Error listing vulnerabilities: {e}", err=True)
-        sys.exit(1)
-
-@cli.command()
-@click.argument('team_key')
-@click.argument('label')
-@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
-def refresh_execution_for_team(team_key: str, label: str, team_config: str):
-    """Refresh execution data for a team and upload the report context to Google Drive.
-    
-    This command:
-    1. Initializes a stats manager for the given team and label
-    2. Fills dates for the team
-    3. Writes stats for the team
-    4. Renders the execution context
-    5. Uploads the context to Google Drive
-    
-    Args:
-        team_key: Key of the team to analyze (e.g., 'app_foundations')
-        label: Label to filter epics by (e.g., 'Q4-2024')
-        team_config: Path to team configuration file
-    """
-    # Get team and stats manager
+    # Load team configuration
     team_manager = TeamManager(team_config)
     team = team_manager.by_key(team_key)
+    
     if not team:
         click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
         sys.exit(1)
-
-    _refresh_execution_for_team(team, label, team_config)
-        
-
-def _refresh_execution_for_team(team: Team, label: str, team_config: str):
-    manager = get_stats_manager(label, team_config)
     
-    # Fill dates and write stats
-    click.echo(f"📊 Filling dates for team {team.key}...")
-    manager.fill_dates(team.key)
-    
-    click.echo(f"📝 Writing stats for team {team.key}...")
-    manager.write_stats_for_team(team.key)
-    
-    # Get the report and render context
-    click.echo(f"📄 Rendering execution context...")
-    generator = manager.generator
-    analyzer = generator.analyzer
-    report = generator.get_report(team)
-    vulnerability_stats = generator.get_vulnerability_stats(team)
-    rendered_context = analyzer.render_report_context(report, vulnerability_stats)
-    
-    # Get remote path and upload to Google Drive
-    remote_path = analyzer.get_remote_path_for_context(team)
-    click.echo(f"📤 Uploading context to Google Drive at '{remote_path}'...")
-    
-    # Write to Google Drive
-    drive_client = DriveClient()
-    drive_client.write(remote_path, rendered_context)
-    
-    click.echo("✅ Successfully refreshed execution data and uploaded context")
-
-@cli.command()
-@click.argument('label')
-@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
-@click.option('--skip-teams', help='Comma-separated list of team keys to skip (e.g., "team1,team2")')
-def refresh_all_execution(label: str, team_config: str, skip_teams: str):
-    """Refresh execution data for all teams and upload their report contexts to Google Drive.
-    
-    This command:
-    1. Gets all teams from the team configuration
-    2. For each team, calls refresh_execution_for_team with the given label
-    3. Shows progress for each team being processed
-    
-    Args:
-        label: Label to filter epics by (e.g., 'Q4-2024')
-        team_config: Path to team configuration file
-        skip_teams: Comma-separated list of team keys to skip
-    """
-    # Get all teams
-    team_manager = TeamManager(team_config)
-    teams = team_manager.get_all_teams()
-    
-    if not teams:
-        click.echo("❌ No teams found in configuration", err=True)
+    # Check if team has project keys
+    if not hasattr(team, 'project_keys') or not team.project_keys:
+        click.echo(f"Error: Team '{team.name}' has no project keys configured", err=True)
         sys.exit(1)
     
-    # Parse skip teams if provided
-    skip_team_keys = set()
-    if skip_teams:
-        skip_team_keys = {key.strip() for key in skip_teams.split(',')}
-        click.echo(f"⏭️  Skipping teams: {', '.join(skip_team_keys)}")
+    click.echo(f"🔍 Listing vulnerabilities for team: {team.name}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
     
-    # Filter out skipped teams
-    teams_to_process = [team for team in teams if team.key not in skip_team_keys]
-    
-    if not teams_to_process:
-        click.echo("❌ No teams remaining after applying skip filter", err=True)
-        sys.exit(1)
-    
-    click.echo(f"🔄 Starting execution refresh for {len(teams_to_process)} teams...")
-    
-    # Process each team
-    for i, team in enumerate(teams_to_process, 1):
-        click.echo(f"\n📋 Processing team {i}/{len(teams_to_process)}: {team.key}")
-        _refresh_execution_for_team(team, label, team_config)
-    
-    click.echo("\n✅ Successfully refreshed execution data for all teams")
-
-@cli.command()
-@click.argument('team_key')
-@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
-def write_report_for_team(team_key: str, team_config: str):
-    """Write an execution report for a team to Google Docs.
-    
-    This command:
-    1. Gets the team information
-    2. Downloads the context from Google Drive
-    3. Renders the report content using AI
-    4. Writes the content to Google Docs using the team name as the tab name
-    
-    Args:
-        team_key: Key of the team to analyze (e.g., 'app_foundations')
-        team_config: Path to team configuration file
-    """
-    # Initialize clients
+    # Initialize JIRA client
     jira_client = JIRAClient()
-    drive_client = DriveClient()
-    docs_client = DocsClient()
-    analyzer = ExecutionAnalyzer(jira_client)
     
-    # Get team information
-    team_manager = TeamManager(team_config)
-    team = team_manager.by_key(team_key)
+    # Collect vulnerabilities from all project keys
+    all_vulnerabilities = []
     
-    # Get the remote path for the context
-    remote_path = analyzer.get_remote_path_for_context(team)
-
-    if True:
-        # Download the context from Google Drive
-        click.echo(f"📥 Downloading context from: {remote_path}")
-        context_content = drive_client.read(remote_path)
+    for project_key in team.project_keys:
+        click.echo(f"\n  ↳ Fetching vulnerabilities from project {project_key}...")
+        vulnerabilities = jira_client.get_vulnerabilities_for_project(project_key)
+        all_vulnerabilities.extend(vulnerabilities)
+        click.echo(f"    Found {len(vulnerabilities)} vulnerabilities in {project_key}")
         
-        if not context_content:
-            click.echo(f"❌ Error: Could not read context from {remote_path}", err=True)
-            sys.exit(1)
-            
-        # Render the report content
-        click.echo("🤖 Generating execution report using AI...")
-        report_content = analyzer.render_execution_report(context_content)
-    else:
-        # Read report content from file
-        import os
-        report_path = os.path.expanduser('~/dev/tmp/af_report.md')
-        click.echo(f"📥 Reading report from: {report_path}")
-        with open(report_path, 'r') as f:
-            report_content = f.read()
+        # Show individual vulnerabilities for this project
+        if vulnerabilities:
+            for vuln in vulnerabilities:
+                status_emoji = "🔴" if vuln.get_status() in [IssueStatus.TODO, IssueStatus.IN_PROGRESS] else "🟢"
+                due_date_str = vuln.due_date.strftime('%Y-%m-%d') if vuln.due_date else "No due date"
+                click.echo(f"      {status_emoji} {vuln.key}: {vuln.summary}")
+                click.echo(f"        Status: {vuln.status} | Due: {due_date_str}")
     
-    # Write to Google Docs
-    click.echo(f"📝 Writing report to Google Docs tab: {team.name}")
-    docs_client.write_markdown(team.name, report_content)
+    if not all_vulnerabilities:
+        click.echo(f"\n✅ No vulnerabilities found in any of the team's projects")
+        return
     
-    click.echo("✅ Successfully wrote execution report to Google Docs")
+    # Print summary
+    click.echo(f"\n📊 Vulnerability Summary")
+    click.echo("=" * 50)
+    click.echo(f"📋 Total Vulnerabilities: {len(all_vulnerabilities)}")
+    
+    # Group by status
+    status_counts = {}
+    for vuln in all_vulnerabilities:
+        status = vuln.get_status().value if hasattr(vuln, 'get_status') else vuln.status
+        status_counts[status] = status_counts.get(status, 0) + 1
+    
+    click.echo(f"\n📈 Status Breakdown:")
+    for status, count in status_counts.items():
+        percentage = (count / len(all_vulnerabilities)) * 100
+        click.echo(f"  {status}: {count} ({percentage:.1f}%)")
+    
+    # Group by project
+    project_counts = {}
+    for vuln in all_vulnerabilities:
+        project_counts[vuln.project_key] = project_counts.get(vuln.project_key, 0) + 1
+    
+    click.echo(f"\n🎯 Project Breakdown:")
+    for project, count in project_counts.items():
+        percentage = (count / len(all_vulnerabilities)) * 100
+        click.echo(f"  {project}: {count} ({percentage:.1f}%)")
+    
+    click.echo("\n" + "=" * 50)
