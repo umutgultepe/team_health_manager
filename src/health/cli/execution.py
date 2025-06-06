@@ -11,6 +11,7 @@ from ..config.credentials import get_execution_sheet_id
 from ..clients.sheets import SheetsClient
 from ..statistics_generator import ExecutionStatistics
 from ..stats_manager import StatsManager
+from ..renderers.cli.jira_execution_cli_renderer import JiraExecutionCliRenderer
 
 def get_stats_manager(label: str, team_config: str = 'src/health/config/team.yaml', stats_config: str = 'src/health/config/execution_stats.yaml'):
     sheets_client = SheetsClient(get_execution_sheet_id())
@@ -18,53 +19,6 @@ def get_stats_manager(label: str, team_config: str = 'src/health/config/team.yam
     statistics_generator = ExecutionStatistics(jira_client, label)
     return StatsManager(sheets_client, statistics_generator, team_config)
 
-
-def print_execution_report(report):
-    """Print the execution report in a formatted way."""
-    click.echo(f"\n📊 Execution Report")
-    click.echo("=" * 50)
-    
-    # Print epic summary
-    epic_count = len(report.epics)
-    click.echo(f"📋 Total Epics: {epic_count}")
-    
-    if epic_count > 0:
-        # Group epics by status
-        status_counts = {}
-        for epic in report.epics:
-            status = epic.get_status().value if hasattr(epic, 'get_status') else epic.status
-            status_counts[status] = status_counts.get(status, 0) + 1
-        
-        click.echo("\n📈 Epic Status Breakdown:")
-        for status, count in status_counts.items():
-            percentage = (count / epic_count) * 100
-            click.echo(f"  {status}: {count} ({percentage:.1f}%)")
-    
-    # Print story summary
-    story_count = len(report.stories) if hasattr(report, 'stories') and report.stories else 0
-    click.echo(f"\n📝 Total Stories: {story_count}")
-    
-    # Print problems summary
-    problem_count = len(report.problems) if hasattr(report, 'problems') and report.problems else 0
-    click.echo(f"\n⚠️  Total Problems Found: {problem_count}")
-    
-    if problem_count > 0:
-        # Group problems by type
-        problem_types = {}
-        for problem in report.problems:
-            problem_type = problem.problem_type.value if hasattr(problem.problem_type, 'value') else str(problem.problem_type)
-            problem_types[problem_type] = problem_types.get(problem_type, 0) + 1
-        
-        click.echo("\n🔍 Problem Breakdown:")
-        for problem_type, count in problem_types.items():
-            click.echo(f"  {problem_type}: {count}")
-        
-        # Show first few problems as examples
-        click.echo("\n📋 Problems:")
-        for i, problem in enumerate(report.problems):  # Show first 5 problems
-            click.echo(f"  {i+1}. {problem.description}")
-    
-    click.echo("\n" + "=" * 50)
 
 @cli.command()
 @click.argument('epic_key')
@@ -293,7 +247,9 @@ def write_execution_stats(team_key: str, label: str, section: str, team_config: 
 @click.argument('team_key')
 @click.argument('label')
 @click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
-def team_execution_report(team_key: str, label: str, team_config: str):
+@click.option('--watch', is_flag=True, help='Enable watch mode with live updates every 60 seconds')
+@click.option('--refresh-interval', default=60, help='Refresh interval in seconds for watch mode (default: 60)')
+def team_execution_report(team_key: str, label: str, team_config: str, watch: bool, refresh_interval: int):
     """Generate an execution report for a team's epics with a specific label.
     
     This command:
@@ -301,11 +257,14 @@ def team_execution_report(team_key: str, label: str, team_config: str):
     2. Fetches all epics with the specified label from each project
     3. Analyzes the epics for execution problems and metrics
     4. Displays a comprehensive report
+    5. With --watch flag, continuously updates the report in real-time
     
     Args:
         team_key: Key of the team to analyze (e.g., 'app_foundations')
         label: Label to filter epics by (e.g., 'Q4-2024')
         team_config: Path to team configuration file
+        watch: Enable continuous monitoring with live updates
+        refresh_interval: How often to refresh in watch mode (seconds)
     """
     # Load team configuration
     team_manager = TeamManager(team_config)
@@ -320,6 +279,13 @@ def team_execution_report(team_key: str, label: str, team_config: str):
         click.echo(f"Error: Team '{team.name}' has no project keys configured", err=True)
         sys.exit(1)
     
+    if watch:
+        _run_watch_mode(team, label, refresh_interval)
+    else:
+        _run_single_report(team, label)
+
+def _run_single_report(team, label: str):
+    """Run a single execution report."""
     click.echo(f"🔍 Analyzing execution for team: {team.name}")
     click.echo(f"📋 Label: {label}")
     click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
@@ -347,9 +313,64 @@ def team_execution_report(team_key: str, label: str, team_config: str):
     analyzer = ExecutionAnalyzer(jira_client)
     report = analyzer.analyze_epics(all_epics)
     
-    # Print the report
-    print_execution_report(report)
+    # Use the new renderer instead of the old print function
+    renderer = JiraExecutionCliRenderer()
+    renderer.render_report(report)
 
+def _run_watch_mode(team, label: str, refresh_interval: int):
+    """Run continuous watch mode with live updates."""
+    import time
+    import os
+    from datetime import datetime
+    
+    click.echo(f"🔄 Starting Live Watch Mode for team: {team.name}")
+    click.echo(f"📋 Label: {label}")
+    click.echo(f"🎯 Project keys: {', '.join(team.project_keys)}")
+    click.echo(f"⏱️  Refresh interval: {refresh_interval} seconds")
+    click.echo(f"💡 Press Ctrl+C to exit watch mode\n")
+    
+    # Initialize JIRA client and renderer
+    jira_client = JIRAClient()
+    analyzer = ExecutionAnalyzer(jira_client)
+    renderer = JiraExecutionCliRenderer()
+    
+    previous_report = None
+    iteration = 0
+    
+    try:
+        while True:
+            iteration += 1
+            
+            # Clear screen for better readability
+            os.system('clear' if os.name == 'posix' else 'cls')
+            
+            # Collect and analyze current data
+            all_epics: List[Epic] = []
+            for project_key in team.project_keys:
+                epics = jira_client.get_epics_by_label(project_key, label)
+                all_epics.extend(epics)
+            
+            if not all_epics:
+                click.echo(f"❌ No epics found with label '{label}' in any of the team's projects")
+                time.sleep(refresh_interval)
+                continue
+            
+            current_report = analyzer.analyze_epics(all_epics)
+            
+            # Use renderer for watch mode display
+            renderer.render_watch_mode(current_report, previous_report, iteration, refresh_interval)
+            
+            previous_report = current_report
+            
+            # Wait for next refresh
+            for remaining in range(refresh_interval, 0, -1):
+                print(f"\r🔄 Next refresh in: {remaining:2d}s (Press Ctrl+C to exit)", end="", flush=True)
+                time.sleep(1)
+            print()  # New line after countdown
+            
+    except KeyboardInterrupt:
+        click.echo(f"\n\n👋 Watch mode stopped. Final iteration: {iteration}")
+        click.echo("📊 Run without --watch flag for a static report.")
 
 @cli.command()
 @click.argument('team_key')
