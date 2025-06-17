@@ -1,6 +1,7 @@
 import click
 from ..clients.sheets import SheetsClient
 from ..clients.drive import DriveClient
+from ..clients.docs import DocsClient
 from .base import cli
 from ..config.credentials import get_health_sheet_id
 
@@ -64,4 +65,23 @@ def read_file(remote_path: str):
         click.echo(content)
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)
-        return 
+        return
+
+@cli.command()
+@click.argument('tab_name')
+@click.argument('filename', type=click.Path(exists=True))
+def write_to_docs(tab_name: str, filename: str):
+    """Write content from a file to a specific tab in the operating review document.
+    
+    Args:
+        tab_name: Name of the tab to write to
+        filename: Path to the file containing the content to write
+    """
+    # Read the content from the file
+    with open(filename, 'r') as f:
+        content = f.read()
+        
+    # Write to Google Docs
+    client = DocsClient()
+    client.write_markdown(tab_name, content)
+    click.echo(f"Successfully wrote content to tab '{tab_name}' in the operating review document")
