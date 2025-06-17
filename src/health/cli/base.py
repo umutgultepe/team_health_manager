@@ -58,6 +58,6 @@ def ai(prompt: str):
 from . import slack  # noqa
 from . import pagerduty  # noqa
 from . import jira  # noqa 
-from . import sheets  # noqa 
+from . import google  # noqa 
 from . import stats  # noqa
 from . import execution  # noqa 
