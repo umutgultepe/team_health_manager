@@ -3,6 +3,7 @@ import sys
 from typing import List
 from ..dataclass import IssueStatus
 from ..clients.jira import JIRAClient
+from ..clients.drive import DriveClient
 from ..execution_analyzer import ExecutionAnalyzer
 from ..team_manager import TeamManager
 from ..dataclass import Epic
@@ -420,3 +421,56 @@ def list_vulnerabilities(team_key: str, team_config: str):
     except Exception as e:
         click.echo(f"❌ Error listing vulnerabilities: {e}", err=True)
         sys.exit(1)
+
+@cli.command()
+@click.argument('team_key')
+@click.argument('label')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+def refresh_execution_for_team(team_key: str, label: str, team_config: str):
+    """Refresh execution data for a team and upload the report context to Google Drive.
+    
+    This command:
+    1. Initializes a stats manager for the given team and label
+    2. Fills dates for the team
+    3. Writes stats for the team
+    4. Renders the execution context
+    5. Uploads the context to Google Drive
+    
+    Args:
+        team_key: Key of the team to analyze (e.g., 'app_foundations')
+        label: Label to filter epics by (e.g., 'Q4-2024')
+        team_config: Path to team configuration file
+    """
+    # Get team and stats manager
+    team_manager = TeamManager(team_config)
+    team = team_manager.by_key(team_key)
+    if not team:
+        click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
+        sys.exit(1)
+        
+    manager = get_stats_manager(label, team_config)
+    
+    # Fill dates and write stats
+    click.echo(f"📊 Filling dates for team {team_key}...")
+    manager.fill_dates(team_key)
+    
+    click.echo(f"📝 Writing stats for team {team_key}...")
+    manager.write_stats_for_team(team_key)
+    
+    # Get the report and render context
+    click.echo(f"📄 Rendering execution context...")
+    generator = manager.generator
+    analyzer = generator.analyzer
+    report = generator.get_report(team)
+    vulnerability_stats = generator.get_vulnerability_stats(team)
+    rendered_context = analyzer.render_report_context(report, vulnerability_stats)
+    
+    # Get remote path and upload to Google Drive
+    remote_path = analyzer.get_remote_path_for_context(team)
+    click.echo(f"📤 Uploading context to Google Drive at '{remote_path}'...")
+    
+    # Write to Google Drive
+    drive_client = DriveClient()
+    drive_client.write(remote_path, rendered_context)
+    
+    click.echo("✅ Successfully refreshed execution data and uploaded context")

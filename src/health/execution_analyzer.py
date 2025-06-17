@@ -4,7 +4,7 @@ import json
 from jinja2 import Environment, FileSystemLoader
 from .clients.jira import JIRAClient
 from .clients.ai import AIClient
-from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats, EpicStatusEvaluation, Evaluation, Vulnerability, VulnerabilityStats
+from .dataclass import Epic, ExecutionReport, TrackingProblem, ProblemType, IssueStatus, Issue, ExecutionStats, EpicStatusEvaluation, Evaluation, Vulnerability, VulnerabilityStats, Team
 
 
 class ExecutionAnalyzer:
@@ -99,9 +99,19 @@ class ExecutionAnalyzer:
             ExecutionStats containing calculated statistics
         """
         report = self.analyze_epics(epics)
+        return self.build_statistics_from_report(report)
+
+    def build_statistics_from_report(self, report: ExecutionReport) -> ExecutionStats:
+        """Build execution statistics from an ExecutionReport.
         
+        Args:
+            report: ExecutionReport containing epics and problems to analyze
+            
+        Returns:
+            ExecutionStats containing calculated statistics
+        """
         # Count epics by status
-        in_progress_epics = sum(1 for epic in epics if epic.get_status() == IssueStatus.IN_PROGRESS)
+        in_progress_epics = sum(1 for epic in report.epics if epic.get_status() == IssueStatus.IN_PROGRESS)
         
         # Count problems by type
         missing_start_date = sum(1 for problem in report.problems if problem.problem_type == ProblemType.MISSING_START_DATE)
@@ -328,3 +338,19 @@ class ExecutionAnalyzer:
         # Make AI API call
         response = self.ai_client.call_api(full_prompt)
         return response
+
+
+    def get_remote_path_for_context(self, team: Team) -> str:
+        """Get the remote path for the context document.
+        
+        Args:
+            team: Team object containing the team information
+            
+        Returns:
+            str: Remote path for the context document
+        """
+        # Calculate the most recent Monday
+        today = date.today()
+        days_since_monday = today.weekday()
+        report_date = today - timedelta(days=days_since_monday)
+        return  f"MPP - Team Execution Context/Week of {report_date.today().strftime('%Y-%m-%d')}/{team.key}_context.md"

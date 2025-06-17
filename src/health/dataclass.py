@@ -6,6 +6,7 @@ from enum import Enum
 @dataclass
 class Team:
     """Team configuration."""
+    key: str
     name: str
     help_channel: str
     oncall_handle: str

@@ -1,7 +1,7 @@
 from .clients.pagerduty import PagerDutyClient
 from .clients.jira import JIRAClient
 from .execution_analyzer import ExecutionAnalyzer
-from .dataclass import ExecutionReport, Vulnerability, Team
+from .dataclass import ExecutionReport, Vulnerability, Team, VulnerabilityStats
 from typing import List
 import yaml
 
@@ -79,6 +79,9 @@ class ExecutionStatistics(StatisticsGenerator):
                 all_vulnerabilities.extend(vulnerabilities)
             self.vulnerabilities[team.name] = all_vulnerabilities
         return self.vulnerabilities[team.name]
+
+    def get_vulnerability_stats(self, team: Team) -> VulnerabilityStats:
+        return self.analyzer.build_vulnerability_stats(self.get_vulnerabilities(team))
 
     def render_context(self, team_name: str) -> str:
         report = self.get_report(team_name)

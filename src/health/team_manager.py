@@ -56,6 +56,7 @@ class TeamManager:
                 raise ValueError(f"Components for team {key} must be a list")
             
             self.teams[key] = Team(
+                key=key,
                 name=team_config['name'],
                 help_channel=team_config['help_channel'],
                 oncall_handle=team_config['oncall_handle'],
