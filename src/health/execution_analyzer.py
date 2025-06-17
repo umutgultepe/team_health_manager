@@ -353,4 +353,4 @@ class ExecutionAnalyzer:
         today = date.today()
         days_since_monday = today.weekday()
         report_date = today - timedelta(days=days_since_monday)
-        return  f"MPP - Team Execution Context/Week of {report_date.today().strftime('%Y-%m-%d')}/{team.key}_context.md"
+        return  f"MPP - Team Execution Context/Week of {report_date.strftime('%Y-%m-%d')}/{team.key}_context.md"

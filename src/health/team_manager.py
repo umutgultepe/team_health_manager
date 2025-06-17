@@ -64,7 +64,16 @@ class TeamManager:
                 components=team_config.get("components", []),
                 project_keys=team_config.get("project_keys", [])
             )
-    
+
+    def get_all_teams(self) -> List[Team]:
+        """
+        Get all teams from the configuration.
+        
+        Returns:
+            List[Team]: List of all teams
+        """
+        return list(self.teams.values())    
+
     def by_key(self, key: str) -> Optional[Team]:
         """
         Get a team by its key.

@@ -6,7 +6,7 @@ from ..clients.jira import JIRAClient
 from ..clients.drive import DriveClient
 from ..execution_analyzer import ExecutionAnalyzer
 from ..team_manager import TeamManager
-from ..dataclass import Epic
+from ..dataclass import Epic, Team
 from .base import cli
 from ..config.credentials import get_execution_sheet_id
 from ..clients.sheets import SheetsClient
@@ -447,15 +447,19 @@ def refresh_execution_for_team(team_key: str, label: str, team_config: str):
     if not team:
         click.echo(f"Error: Team '{team_key}' not found in configuration", err=True)
         sys.exit(1)
+
+    _refresh_execution_for_team(team, label, team_config)
         
+
+def _refresh_execution_for_team(team: Team, label: str, team_config: str):
     manager = get_stats_manager(label, team_config)
     
     # Fill dates and write stats
-    click.echo(f"📊 Filling dates for team {team_key}...")
-    manager.fill_dates(team_key)
+    click.echo(f"📊 Filling dates for team {team.key}...")
+    manager.fill_dates(team.key)
     
-    click.echo(f"📝 Writing stats for team {team_key}...")
-    manager.write_stats_for_team(team_key)
+    click.echo(f"📝 Writing stats for team {team.key}...")
+    manager.write_stats_for_team(team.key)
     
     # Get the report and render context
     click.echo(f"📄 Rendering execution context...")
@@ -474,3 +478,50 @@ def refresh_execution_for_team(team_key: str, label: str, team_config: str):
     drive_client.write(remote_path, rendered_context)
     
     click.echo("✅ Successfully refreshed execution data and uploaded context")
+
+@cli.command()
+@click.argument('label')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+@click.option('--skip-teams', help='Comma-separated list of team keys to skip (e.g., "team1,team2")')
+def refresh_all_execution(label: str, team_config: str, skip_teams: str):
+    """Refresh execution data for all teams and upload their report contexts to Google Drive.
+    
+    This command:
+    1. Gets all teams from the team configuration
+    2. For each team, calls refresh_execution_for_team with the given label
+    3. Shows progress for each team being processed
+    
+    Args:
+        label: Label to filter epics by (e.g., 'Q4-2024')
+        team_config: Path to team configuration file
+        skip_teams: Comma-separated list of team keys to skip
+    """
+    # Get all teams
+    team_manager = TeamManager(team_config)
+    teams = team_manager.get_all_teams()
+    
+    if not teams:
+        click.echo("❌ No teams found in configuration", err=True)
+        sys.exit(1)
+    
+    # Parse skip teams if provided
+    skip_team_keys = set()
+    if skip_teams:
+        skip_team_keys = {key.strip() for key in skip_teams.split(',')}
+        click.echo(f"⏭️  Skipping teams: {', '.join(skip_team_keys)}")
+    
+    # Filter out skipped teams
+    teams_to_process = [team for team in teams if team.key not in skip_team_keys]
+    
+    if not teams_to_process:
+        click.echo("❌ No teams remaining after applying skip filter", err=True)
+        sys.exit(1)
+    
+    click.echo(f"🔄 Starting execution refresh for {len(teams_to_process)} teams...")
+    
+    # Process each team
+    for i, team in enumerate(teams_to_process, 1):
+        click.echo(f"\n📋 Processing team {i}/{len(teams_to_process)}: {team.key}")
+        _refresh_execution_for_team(team, label, team_config)
+    
+    click.echo("\n✅ Successfully refreshed execution data for all teams")

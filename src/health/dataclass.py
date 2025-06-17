@@ -171,6 +171,7 @@ STATUS_MAP = {
     "wont fix": IssueStatus.INVALID,
     "won't fix": IssueStatus.INVALID,
     "code review / pending push": IssueStatus.IN_PROGRESS,
+    "ready for deployment": IssueStatus.IN_PROGRESS,
 }
 
 @dataclass
