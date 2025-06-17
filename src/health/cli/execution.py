@@ -12,6 +12,7 @@ from ..config.credentials import get_execution_sheet_id
 from ..clients.sheets import SheetsClient
 from ..statistics_generator import ExecutionStatistics
 from ..stats_manager import StatsManager
+from ..clients.docs import DocsClient
 
 def get_stats_manager(label: str, team_config: str = 'src/health/config/team.yaml', stats_config: str = 'src/health/config/execution_stats.yaml'):
     sheets_client = SheetsClient(get_execution_sheet_id())
@@ -525,3 +526,50 @@ def refresh_all_execution(label: str, team_config: str, skip_teams: str):
         _refresh_execution_for_team(team, label, team_config)
     
     click.echo("\n✅ Successfully refreshed execution data for all teams")
+
+@cli.command()
+@click.argument('team_key')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+def write_report_for_team(team_key: str, team_config: str):
+    """Write an execution report for a team to Google Docs.
+    
+    This command:
+    1. Gets the team information
+    2. Downloads the context from Google Drive
+    3. Renders the report content using AI
+    4. Writes the content to Google Docs using the team name as the tab name
+    
+    Args:
+        team_key: Key of the team to analyze (e.g., 'app_foundations')
+        team_config: Path to team configuration file
+    """
+    # Initialize clients
+    jira_client = JIRAClient()
+    drive_client = DriveClient()
+    docs_client = DocsClient()
+    analyzer = ExecutionAnalyzer(jira_client)
+    
+    # Get team information
+    team_manager = TeamManager(team_config)
+    team = team_manager.by_key(team_key)
+    
+    # Get the remote path for the context
+    remote_path = analyzer.get_remote_path_for_context(team)
+    
+    # Download the context from Google Drive
+    click.echo(f"📥 Downloading context from: {remote_path}")
+    context_content = drive_client.read(remote_path)
+    
+    if not context_content:
+        click.echo(f"❌ Error: Could not read context from {remote_path}", err=True)
+        sys.exit(1)
+        
+    # Render the report content
+    click.echo("🤖 Generating execution report using AI...")
+    report_content = analyzer.render_execution_report(context_content)
+    
+    # Write to Google Docs
+    click.echo(f"📝 Writing report to Google Docs tab: {team.name}")
+    docs_client.write_markdown(team.name, report_content)
+    
+    click.echo("✅ Successfully wrote execution report to Google Docs")
