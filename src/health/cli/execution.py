@@ -555,18 +555,26 @@ def write_report_for_team(team_key: str, team_config: str):
     
     # Get the remote path for the context
     remote_path = analyzer.get_remote_path_for_context(team)
-    
-    # Download the context from Google Drive
-    click.echo(f"📥 Downloading context from: {remote_path}")
-    context_content = drive_client.read(remote_path)
-    
-    if not context_content:
-        click.echo(f"❌ Error: Could not read context from {remote_path}", err=True)
-        sys.exit(1)
+
+    if True:
+        # Download the context from Google Drive
+        click.echo(f"📥 Downloading context from: {remote_path}")
+        context_content = drive_client.read(remote_path)
         
-    # Render the report content
-    click.echo("🤖 Generating execution report using AI...")
-    report_content = analyzer.render_execution_report(context_content)
+        if not context_content:
+            click.echo(f"❌ Error: Could not read context from {remote_path}", err=True)
+            sys.exit(1)
+            
+        # Render the report content
+        click.echo("🤖 Generating execution report using AI...")
+        report_content = analyzer.render_execution_report(context_content)
+    else:
+        # Read report content from file
+        import os
+        report_path = os.path.expanduser('~/dev/tmp/af_report.md')
+        click.echo(f"📥 Reading report from: {report_path}")
+        with open(report_path, 'r') as f:
+            report_content = f.read()
     
     # Write to Google Docs
     click.echo(f"📝 Writing report to Google Docs tab: {team.name}")

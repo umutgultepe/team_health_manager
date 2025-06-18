@@ -4,6 +4,8 @@ from googleapiclient.errors import HttpError
 from ..config.credentials import get_google_credentials, get_operating_review_document_id
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import re
+from markgdoc import markgdoc
+from typing import List, Dict
 
 class DocsClient:
     """Client for interacting with Google Docs."""
@@ -39,223 +41,91 @@ class DocsClient:
                 raise  # Retry on 429 errors
             raise Exception(f"An error occurred while accessing Google Docs: {error}")
 
-    def _convert_markdown_to_docs_format(self, content: str) -> list:
-        """Convert markdown content to Google Docs formatting requests.
-        
-        Args:
-            content: Markdown content to convert
-            
-        Returns:
-            List of Google Docs formatting requests
-        """
-        requests = []
-        lines = content.split('\n')
-        current_index = 1  # Start after the initial newline
-        
-        for line in lines:
-            # Handle horizontal line
-            if line.strip() == '---' or line.strip() == '***':
-                requests.extend([
-                    {
-                        'insertText': {
-                            'location': {'index': current_index},
-                            'text': '\n'
-                        }
-                    },
-                    {
-                        'insertText': {
-                            'location': {'index': current_index + 1},
-                            'text': ' '  # Empty paragraph for the line
-                        }
-                    },
-                    {
-                        'updateParagraphStyle': {
-                            'range': {
-                                'startIndex': current_index + 1,
-                                'endIndex': current_index + 2
-                            },
-                            'paragraphStyle': {
-                                'borderBottom': {
-                                    'color': {
-                                        'color': {
-                                            'rgbColor': {
-                                                'red': 0.5,
-                                                'green': 0.5,
-                                                'blue': 0.5
-                                            }
-                                        }
-                                    },
-                                    'width': {
-                                        'magnitude': 1,
-                                        'unit': 'PT'
-                                    },
-                                    'dashStyle': 'SOLID',
-                                    'padding': {
-                                        'magnitude': 6,
-                                        'unit': 'PT'
-                                    }
-                                }
-                            },
-                            'fields': 'borderBottom'
-                        }
-                    },
-                    {
-                        'insertText': {
-                            'location': {'index': current_index + 2},
-                            'text': '\n'
-                        }
-                    }
-                ])
-                current_index += 3
-                continue
 
-            # Handle headers
-            header_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+    def _write_markdown_to_tab(self, content_markdown: str, tab_id: str) -> None:
+        """Write markdown content to a specific tab in the operating review document using markgdoc package."""
+        # First preprocess numbered lists, then split the content into chunks every new line detected. 
+        content_markdown = markgdoc.preprocess_numbered_lists(content_markdown)
+        chunks = re.split(r"(?<=\n)", content_markdown)
+
+        # Initializing variables, index = 1
+        chunks = iter(chunks)
+        index = 1
+        text_requests = []
+        style_requests = []
+
+        # For each chunk detected: 
+        for chunk in chunks:
+            # Initialize a chunk by stripping it and splitting into requests per chunk
+            chunk = chunk.strip()
+            requests = []
+            table_flag = False
+            paragraph_flag = markgdoc.is_paragraph(chunk)
+
+            # Then we preprocess any styles recognized in the chunks and store them into the style_requests
+            received_styling, cleaned_chunk = markgdoc.preprocess_nested_styles(chunk, index, paragraph_flag, debug=False)
+            style_requests.extend(received_styling)
+
+            # Matches detected 
+            header_match = re.match(r"^(#{1,6})\s+(.+)", cleaned_chunk)
+            bullet_point_match = re.match(r"^-\s+(.+)", cleaned_chunk)
+            numbered_list_match = re.match(r"^\d+\.\s+(.+)", cleaned_chunk)
+            horizontal_line_match = re.match(r"^[-*_]{3,}$", cleaned_chunk)
+            
+            # If the chunk has header markdown syntax add the request
             if header_match:
-                level = len(header_match.group(1))
-                text = header_match.group(2)
-                requests.extend([
-                    {
-                        'insertText': {
-                            'location': {'index': current_index},
-                            'text': text + '\n'
-                        }
-                    },
-                    {
-                        'updateParagraphStyle': {
-                            'range': {
-                                'startIndex': current_index,
-                                'endIndex': current_index + len(text)
-                            },
-                            'paragraphStyle': {
-                                'namedStyleType': f'HEADING_{level}'
-                            },
-                            'fields': 'namedStyleType'
-                        }
-                    }
-                ])
-                current_index += len(text) + 1
-                continue
+                header_level = len(re.match(r"^#+", cleaned_chunk).group(0))
+                text = cleaned_chunk[header_level:].strip()
+                requests.extend(markgdoc.get_header_request(text, header_level, index, debug=False))
+            
+            # If the chunk has unordered list markdown syntax add the request
+            elif bullet_point_match:
+                text = cleaned_chunk[2:].strip()
+                requests.extend(markgdoc.get_unordered_list_request(text, index, debug=False))
 
-            # Handle links first (to avoid conflicts with bold/italic)
-            line = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', lambda m: f'<link url="{m.group(2)}">{m.group(1)}</link>', line)
+            # If the chunk has ordered list markdown syntax add the request
+            elif numbered_list_match:
+                text = re.sub(r"^\d+\.\s", "", cleaned_chunk).strip()
+                requests.extend(markgdoc.get_ordered_list_request(text, index, debug=False))
             
-            # Handle bold
-            line = re.sub(r'\*\*([^*]+)\*\*', lambda m: f'<b>{m.group(1)}</b>', line)
-            
-            # Handle italic
-            line = re.sub(r'\*([^*]+)\*', lambda m: f'<i>{m.group(1)}</i>', line)
-            
-            # Handle code blocks
-            line = re.sub(r'`([^`]+)`', lambda m: f'<code>{m.group(1)}</code>', line)
-            
-            # Handle lists
-            list_match = re.match(r'^[-*]\s+(.+)$', line)
-            if list_match:
-                text = list_match.group(1)
-                requests.extend([
-                    {
-                        'insertText': {
-                            'location': {'index': current_index},
-                            'text': '• ' + text + '\n'
-                        }
-                    },
-                    {
-                        'createParagraphBullets': {
-                            'range': {
-                                'startIndex': current_index,
-                                'endIndex': current_index + len(text) + 3
-                            },
-                            'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
-                        }
-                    }
-                ])
-                current_index += len(text) + 3
-                continue
+            # If the chunk has horizontal line markdown syntax add the request
+            elif horizontal_line_match:
+                requests.extend(markgdoc.get_horizontal_line_request(index, debug=False))
 
-            # Regular text
-            if line.strip():
-                # Process text formatting
-                text = line
-                formatting_requests = []
-                
-                # Handle bold tags
-                bold_matches = re.finditer(r'<b>(.*?)</b>', text)
-                for match in bold_matches:
-                    start = match.start()
-                    end = match.end()
-                    content = match.group(1)
-                    formatting_requests.append({
-                        'updateTextStyle': {
-                            'range': {
-                                'startIndex': current_index + start,
-                                'endIndex': current_index + start + len(content)
-                            },
-                            'textStyle': {
-                                'bold': True
-                            },
-                            'fields': 'bold'
-                        }
-                    })
-                    text = text[:start] + content + text[end:]
-                
-                # Handle link tags
-                link_matches = re.finditer(r'<link url="([^"]+)">(.*?)</link>', text)
-                for match in link_matches:
-                    start = match.start()
-                    end = match.end()
-                    url = match.group(1)
-                    content = match.group(2)
-                    formatting_requests.append({
-                        'updateTextStyle': {
-                            'range': {
-                                'startIndex': current_index + start,
-                                'endIndex': current_index + start + len(content)
-                            },
-                            'textStyle': {
-                                'link': {
-                                    'url': url
-                                }
-                            },
-                            'fields': 'link'
-                        }
-                    })
-                    text = text[:start] + content + text[end:]
-                
-                # Insert the text
-                requests.append({
-                    'insertText': {
-                        'location': {'index': current_index},
-                        'text': text + '\n'
-                    }
-                })
-                
-                # Add formatting requests
-                requests.extend(formatting_requests)
-                
-                current_index += len(text) + 1
+            # If the chunk has none of those, then it is likely a paragraph
             else:
-                requests.append({
-                    'insertText': {
-                        'location': {'index': current_index},
-                        'text': '\n'
-                    }
-                })
-                current_index += 1
-
-        return requests
-    
-    def write_markdown(self, tab_name: str, content: str) -> None:
-        """Write markdown content to a specific tab in the operating review document.
-        
-        Args:
-            tab_name: Name of the tab to write to
-            content: Markdown content to write
+                requests.append(markgdoc.get_paragraph_request(cleaned_chunk, index, debug=False))
             
-        Raises:
-            HttpError: If there's an error writing to Docs
-            Exception: If the tab is not found
-        """
+            #  Append the general requets into the all requests and then appropriately increment the index based on the request text
+            for request in requests:
+                text_requests.append(request)
+                # Table automatically updates index due to monitoring hence, no need to update index if it's a table
+                if "insertText" in request and not table_flag:
+                    index += len(request["insertText"]["text"])
+
+        # Add tab ID to all requests
+        # Flatten style_requests if it's a list of lists
+        if style_requests and isinstance(style_requests[0], list):
+            style_requests = [item for sublist in style_requests for item in sublist]
+
+        for request in text_requests + style_requests:
+            if 'location' in request.get('insertText', {}):
+                request['insertText']['location']['tabId'] = tab_id
+            if 'range' in request.get('updateParagraphStyle', {}):
+                request['updateParagraphStyle']['range']['tabId'] = tab_id
+            if 'range' in request.get('createParagraphBullets', {}):
+                request['createParagraphBullets']['range']['tabId'] = tab_id
+            if 'range' in request.get('updateTextStyle', {}):
+                request['updateTextStyle']['range']['tabId'] = tab_id
+
+        # Send batch updates to insert the text into the google doc
+        markgdoc.send_batch_update(self.service, self.document_id, text_requests)
+        
+        # After inserting the text, send a separate batch update for style requests
+        markgdoc.send_batch_update(self.service, self.document_id, style_requests)
+
+    def write_markdown(self, tab_name: str, content: str) -> None:
+        """Write markdown content to a specific tab in the operating review document using markgdoc package."""
         # Get the document with all tabs content
         document = self._make_docs_request(
             lambda: self.service.documents().get(
@@ -294,22 +164,5 @@ class DocsClient:
         document_tab = target_tab.get('documentTab', {})
         body = document_tab.get('body', {})
         
-        # Convert markdown to Google Docs formatting
-        formatting_requests = self._convert_markdown_to_docs_format(content)
-        
-        # Add tab ID to all requests
-        for request in formatting_requests:
-            if 'location' in request.get('insertText', {}):
-                request['insertText']['location']['tabId'] = target_tab['tabProperties']['tabId']
-            if 'range' in request.get('updateParagraphStyle', {}):
-                request['updateParagraphStyle']['range']['tabId'] = target_tab['tabProperties']['tabId']
-            if 'range' in request.get('createParagraphBullets', {}):
-                request['createParagraphBullets']['range']['tabId'] = target_tab['tabProperties']['tabId']
-        
-        # Execute the request
-        self._make_docs_request(
-            lambda: self.service.documents().batchUpdate(
-                documentId=self.document_id,
-                body={'requests': formatting_requests}
-            )
-        ) 
+        # We need to specify the starting index for insertion
+        self._write_markdown_to_tab(content, target_tab['tabProperties']['tabId'])
