@@ -165,4 +165,4 @@ class DocsClient:
         body = document_tab.get('body', {})
         
         # We need to specify the starting index for insertion
-        self._write_markdown_to_tab(content, target_tab['tabProperties']['tabId'])
+        self._write_markdown_to_tab(content.strip(), target_tab['tabProperties']['tabId'])

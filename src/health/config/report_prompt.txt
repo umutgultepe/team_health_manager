@@ -68,10 +68,5 @@ Stats available at: [Team Health Sheet](https://docs.google.com/spreadsheets/d/{
 ### Process Adherence
 
 Stats available at: [Execution Health Sheet](https://docs.google.com/spreadsheets/d/{{EXECUTION_SHEET_ID}})
-<problems>  
-- Provide a breakdown of the problems found with counts per type and a few examples. 
-- Do not list add any other statistics other than problems. 
-- Do not list every single problem.
-</problems>
 
 <divider>Insert a horizontal line to indicate the end of the doc.</divider>
