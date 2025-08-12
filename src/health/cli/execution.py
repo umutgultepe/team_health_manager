@@ -528,16 +528,41 @@ def refresh_all_execution(label: str, team_config: str, skip_teams: str):
     click.echo("\n✅ Successfully refreshed execution data for all teams")
 
 @cli.command()
-@click.argument('team_key')
+@click.argument('team_keys', nargs=-1, required=True)
 @click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
-def write_report_for_team(team_key: str, team_config: str):
-    """Write an execution report for a team to Google Docs.
+def write_report_for_teams(team_keys: tuple, team_config: str):
+    """Write execution reports for multiple teams to Google Docs.
     
     This command:
-    1. Gets the team information
-    2. Downloads the context from Google Drive
-    3. Renders the report content using AI
-    4. Writes the content to Google Docs using the team name as the tab name
+    1. Takes a list of team keys as arguments
+    2. Calls write_report_for_team for each team
+    3. Shows progress for each team being processed
+    
+    Args:
+        team_keys: List of team keys to process (e.g., 'app_foundations' 'platform' 'data')
+        team_config: Path to team configuration file
+    """
+    if not team_keys:
+        click.echo("❌ No team keys provided", err=True)
+        sys.exit(1)
+    
+    click.echo(f"📋 Writing execution reports for {len(team_keys)} teams...")
+    
+    # Process each team
+    for i, team_key in enumerate(team_keys, 1):
+        click.echo(f"\n📋 Processing team {i}/{len(team_keys)}: {team_key}")
+        try:
+            _write_report_for_team(team_key, team_config)
+            click.echo(f"✅ Successfully wrote report for team: {team_key}")
+        except Exception as e:
+            click.echo(f"❌ Error writing report for team {team_key}: {str(e)}", err=True)
+            # Continue with other teams even if one fails
+    
+    click.echo(f"\n✅ Completed processing {len(team_keys)} teams")
+
+
+def _write_report_for_team(team_key: str, team_config: str):
+    """Internal function to write an execution report for a team to Google Docs.
     
     Args:
         team_key: Key of the team to analyze (e.g., 'app_foundations')
@@ -581,3 +606,22 @@ def write_report_for_team(team_key: str, team_config: str):
     docs_client.write_markdown(team.name, report_content)
     
     click.echo("✅ Successfully wrote execution report to Google Docs")
+
+
+@cli.command()
+@click.argument('team_key')
+@click.option('--team-config', default='src/health/config/team.yaml', help='Path to team configuration file')
+def write_report_for_team(team_key: str, team_config: str):
+    """Write an execution report for a team to Google Docs.
+    
+    This command:
+    1. Gets the team information
+    2. Downloads the context from Google Drive
+    3. Renders the report content using AI
+    4. Writes the content to Google Docs using the team name as the tab name
+    
+    Args:
+        team_key: Key of the team to analyze (e.g., 'app_foundations')
+        team_config: Path to team configuration file
+    """
+    _write_report_for_team(team_key, team_config)

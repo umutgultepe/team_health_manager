@@ -166,6 +166,7 @@ STATUS_MAP = {
     "in review": IssueStatus.IN_PROGRESS,
     "awaiting support": IssueStatus.IN_PROGRESS,
     "pending product/design input": IssueStatus.IN_PROGRESS,
+    "risk acceptance pending": IssueStatus.IN_PROGRESS,
     "in qa": IssueStatus.IN_PROGRESS,
     "done": IssueStatus.DONE,
     "abandoned": IssueStatus.INVALID,
